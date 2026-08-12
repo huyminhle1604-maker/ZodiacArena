@@ -1,37 +1,62 @@
 # ⚔ Zodiac Arena
 
-Pixel MMORPG-lite chơi LAN: **ngày sinh → cung hoàng đạo → buff nền**, chồng lên hệ **class + nhánh + cây kỹ năng**.
-Hai chế độ: **Co-op PvE** (1–3 người) và **PvP FFA xếp hạng** (2–3 người, BO5).
+**PvPvE extraction 3 map.** Vào map, đánh quái, mở rương, nhặt **blessing của 12 cung hoàng đạo**, đánh nhau với người khác, sống sót tới cổng dịch chuyển để mang token đi tiếp.
 
-Không cần `npm install`. Không cần build. Chỉ cần Node.js.
+> Điểm bán hàng cốt lõi: **mỗi ván bạn xây một build khác nhau — và build đó chết theo ván.**
+
+Cảm hứng: 33 Immortals (đông người, PvE co-op) · Hades (build ngẫu nhiên) · battle royale (map co dần).
+
+Không cần `npm install`. Không cần build. Chỉ cần Node.js 18+.
 
 ---
 
-## Chạy game
+## Repo này đang có gì
 
-1. Cài **Node.js 18+** (https://nodejs.org — bản LTS).
-2. Trong thư mục này, chạy:
+| Thứ | Trạng thái |
+|---|---|
+| **Prototype Map 1** (`map1-server.js` + `map1.html`) | 🟢 **Đang phát triển** — vòng lặp 10 phút của map 1, chạy được đầy đủ |
+| Thiết kế 3 map | 📄 Đã chốt trên giấy — xem `game_idea.txt` |
+| **Arena bản cũ** (`server.js` + `index.html`) | 🟡 **Legacy** — bản co-op PvE + PvP FFA trước khi xoay hướng. Giữ lại để tham chiếu số liệu class/skill, không phát triển tiếp |
+
+Map 2 và map 3 **chưa code**. Prototype hiện tại chỉ trả lời một câu hỏi: *vòng lặp 10 phút của map 1 có vui không?*
+
+---
+
+## Chạy Prototype Map 1
+
+```bash
+node map1-server.js
+```
+
+Mở `http://localhost:8081` (Windows: double-click **`start-map1.bat`**).
+
+Server tự **thêm 5 bot** cho đủ 6 chỗ, nên chơi thử một mình vẫn có người để đụng độ.
+
+Biến môi trường để test nhanh:
+
+```bash
+MATCH_TIME=120 BOTS=0 PORT=9001 node map1-server.js
+```
+
+| Biến | Mặc định | Ý nghĩa |
+|---|---|---|
+| `MATCH_TIME` | `600` | Độ dài ván (giây) |
+| `BOTS` | `5` | Số bot lấp chỗ |
+| `PORT` | `8081` | Cổng |
+
+> Windows lần đầu chạy sẽ hỏi **Firewall** cho Node — chọn **Allow** (tick cả *Private network*) thì máy khác trong LAN mới vào được.
+
+### Chạy arena bản cũ
 
 ```bash
 node server.js
 ```
 
-3. Server sẽ in ra địa chỉ, ví dụ:
-
-```
-Máy này :  http://localhost:8080
-Máy khác:  http://192.168.1.12:8080
-```
-
-4. Mỗi người mở địa chỉ đó bằng trình duyệt (Chrome/Edge/Firefox). Xong.
-
-> Windows lần đầu chạy sẽ hỏi **Firewall** cho Node — chọn **Allow** (nhớ tick cả *Private network*) thì máy khác mới vào được.
-> Đổi cổng: `PORT=9000 node server.js`
-> Trên Windows dùng `.bat`: double-click **`start.bat`**.
+Cổng `8080` (hoặc `start.bat`). Chạy song song với map 1 được vì khác cổng.
 
 ---
 
-## Điều khiển
+## Điều khiển (Map 1)
 
 | Phím | Tác dụng |
 |---|---|
@@ -39,73 +64,120 @@ Máy khác:  http://192.168.1.12:8080
 | Chuột | Ngắm |
 | Giữ **chuột trái** hoặc `Space` | Đánh thường |
 | `E` | Kỹ năng class |
-| `R` | Kỹ năng nhánh (mở ở cấp 3) |
-| `T` | Mở cây kỹ năng (co-op) |
+| `R` | Kỹ năng mạnh |
+| `Shift` | **Lướt** — 140px, hồi 4 giây, có 0.15s bất tử |
+| `F` | Mở merchant (khi đứng cạnh) |
+| `Esc` | Đóng merchant |
 
 ---
 
-## Cách chơi
+## Vòng lặp Map 1
 
-### Tạo nhân vật
-Nhập tên → chọn class → nhập **ngày sinh** → nhận cung hoàng đạo. Ngày sinh chỉ dùng để tính cung, không lưu ở đâu.
+Map **2400×1600** có camera bám nhân vật, 6 người, **10 phút + 30 giây thoát**.
 
-### 3 class (trinity)
+```
+farm quái → xu → rương → blessing → merchant → world boss
+          → hết giờ → mưa thiên thạch + 5 cổng → thoát hoặc mất trắng
+```
 
-| Class | Vai | Nhánh A | Nhánh B |
-|---|---|---|---|
-| ⚔ **Kiếm sĩ** (HP 130) | Tank / Bruiser | Vệ Binh — khiên, khiêu chiến | Cuồng Chiến — sát thương, hút máu |
-| 🏹 **Xạ thủ** (HP 92) | DPS tầm xa | Cung Thủ — chí mạng, đa mũi tên | Nỏ Thủ — đạn nặng, xuyên giáp |
-| 🔮 **Nhà sư** (HP 100) | Support | Trị Liệu — hồi máu, khiên | Cầu Nguyện — nguyền, làm yếu |
+**Địa hình cố định mọi ván** (dễ so sánh khi test): 9 bãi quái · 16 chỗ rương · 3 merchant · 8 bức tường · boss ở chính giữa.
 
-Chọn nhánh ở tầng 3 sẽ **khoá vĩnh viễn** nhánh còn lại.
+### Quái
 
-### 12 cung hoàng đạo (buff nền)
+| Loại | HP | Sát thương | XP | Xu |
+|---|---|---|---|---|
+| Slime | 34 | 7 | 6 | 2 |
+| Runner | 22 | 5 | 7 | 2 |
+| Brute | 95 | 15 | 18 | 7 |
+| Caster (tầm xa) | 40 | 9 | 13 | 4 |
+| **World boss** | **1400** | 26 | 160 | 90 |
 
-| Cung | Buff |
+Boss xuất hiện ở **giây 210** (35% thời lượng ván) tại giữa map — đếm ngược công khai cho cả map thấy, đây là lý do PvP nổ ra sớm. Boss rơi **token**.
+
+Định kỳ có quái được **buff hoàng đạo** (5 loại dễ nhận diện bằng hình: Bạch Dương, Kim Ngưu, Song Tử, Bọ Cạp, Song Ngư), hiện ký hiệu cung trên đầu.
+
+### Blessing — 12 cung × 5 slot
+
+Đây là hệ build của game. Mỗi cung có **5 hiệu ứng khác nhau** tuỳ **slot** bạn gắn vào:
+
+| Slot | Ảnh hưởng |
 |---|---|
-| ♈ Bạch Dương | Đòn mở trận ×2 sát thương |
-| ♉ Kim Ngưu | Đứng yên 0.6s → −35% sát thương nhận |
-| ♊ Song Tử | Dùng kỹ năng → +30% tốc đánh 3s |
-| ♋ Cự Giải | Dưới 40% máu → hồi máu ×3 |
-| ♌ Sư Tử | +6% sát thương mỗi địch gần (tối đa 5) |
-| ♍ Xử Nữ | Mỗi giây không dính đòn → +3% chí mạng (tối đa +30%) |
-| ♎ Thiên Bình | HP% ≈ MP% → +18% sát thương |
-| ♏ Bọ Cạp | +6% chí mạng; chí mạng gieo độc, độc lây |
-| ♐ Nhân Mã | Càng xa mục tiêu càng mạnh (tới +30%) |
-| ♑ Ma Kết | +1.5% sát thương mỗi 10s sống sót (tối đa +30%) |
-| ♒ Bảo Bình | 12% mỗi đòn kích hoạt hiệu ứng ngẫu nhiên |
-| ♓ Song Ngư | Mana tối đa ×1.8 |
+| `atk` | Đánh thường |
+| `e` | Kỹ năng E |
+| `r` | Kỹ năng R |
+| `pas` | Bị động |
+| `dash` | Lướt |
 
-### Co-op PvE
-Chống các đợt quái, số quái = 3–6 × số người. Quái đuổi người **gần nhất** — Kiếm sĩ nhánh Vệ Binh dùng `R` để **khiêu chiến** kéo aggro.
-Giết quái → EXP → lên cấp → **+1 điểm kỹ năng** (nhấn `T` để rải). Gục ngã thì hồi sinh sau 6 giây; Nhà sư nhánh Trị Liệu rút ngắn thời gian này.
+Ví dụ **Bọ Cạp**: gắn `atk` → chí mạng gieo độc cộng dồn 5 tầng · gắn `dash` → lướt để lại vệt độc · gắn `pas` → miễn nhiễm độc, độc tự lây giữa các địch đứng gần nhau.
 
-### PvP FFA xếp hạng
-Màn chuẩn bị: mỗi người được **10 điểm** kỹ năng, rải xong bấm **Sẵn sàng**. Build **khoá cả trận**, có nút *Đặt lại điểm* trước khi sẵn sàng.
-Hỗn chiến tự do 60 giây/ván; hết giờ thì ai **% máu cao nhất** thắng ván. Ai thắng **3 ván** trước là vô địch (BO5).
+→ **60 hiệu ứng**, bảng đầy đủ ở `BLESS` trong [`map1-server.js`](map1-server.js).
 
-**Orb** rơi giữa map (đầu tiên ở giây 5, sau đó mỗi 10 giây, tối đa 2, biến mất sau 12 giây):
+Gắn **đủ 5 slot cùng một cung** thì mở **Bộ Hợp Cung** (Chiến Thần, Sơn Nhạc, Vạn Độc, Bất Diệt…).
 
-| Orb | Hiệu ứng |
+Nguồn blessing: rương (45% cơ hội) và merchant. Blessing của người khác **không công khai** — trừ khi bạn gắn Xử Nữ vào `pas`.
+
+### Rương
+
+16 chỗ cố định, mở mất thời gian nên là điểm dễ bị úp. Kết quả:
+
+| Tỉ lệ | Nhận được |
 |---|---|
-| ➕ xanh lá | Hồi 25% máu |
-| ◆ trắng | +30 khiên |
-| ✦ xanh dương | +25% mana |
-| ▲ cam | +25% sát thương (5 giây) |
-| ■ vàng | +25% phòng thủ (5 giây) |
+| 45% | 1 blessing (chọn cung + chọn slot) |
+| 27% | 1–2 token |
+| 18% | 8–21 xu |
+| 10% | +10 HP tối đa, +1.5 sát thương |
 
-**Xếp hạng:** MMR bắt đầu 1000, tính ELO sau mỗi trận, lưu vào `ranks.json` theo **tên nhân vật**.
-Bậc: `<1000` Đồng · `<1200` Bạc · `<1400` Vàng · `<1600` Bạch Kim · `≥1600` Kim Cương.
-Xem bảng xếp hạng ở màn chọn chế độ, hoặc mở `http://<địa-chỉ>:8080/leaderboard`.
+### Merchant
+
+3 vị trí **cố định, hiện trên minimap**, chỉ **mở 1 chỗ tại một thời điểm** và **luân phiên mỗi 2 phút** — cố tình làm vậy để biến thành điểm nóng: ai cũng biết đối thủ sắp phải tới đâu. Xuất hiện sau giây 30, mỗi lượt bày **4 món ngẫu nhiên** trong 9 món.
+
+Bán bằng **xu**: HP tối đa, sát thương, tốc chạy, hồi máu, khiên 60, **đổi 1 blessing sang cung khác (40 xu)**, **mua blessing ngẫu nhiên (55 xu)**.
+
+### Thoát — 30 giây cuối
+
+Hết 10 phút thì **5 cổng dịch chuyển** mở ở vị trí ngẫu nhiên, đồng thời **mưa thiên thạch** rơi khắp map (báo trước 1.3 giây, bán kính 78px, 55 sát thương lên người và 90 lên quái).
+
+Chạm cổng = **thoát, giữ token**. Không kịp hoặc chết = **mất trắng**. Xếp hạng cuối ván: thoát được trước, rồi tới số token.
+
+### Xu vs token
+
+- **Xu** — tiêu trong ván, để mua ở merchant. Quái rơi xu. Chết thì rơi lại 40%.
+- **Token** — phần thưởng mang ra khỏi ván (theo thiết kế là để mua đồ ở lobby). Rương, boss và **giết người (+1)** cho token.
+
+> Theo thiết kế 3 map, thắng ở map 3 sẽ **nhân đôi toàn bộ token cả ván**. Prototype chỉ có map 1 nên **chưa áp hệ số x2** — con số cuối ván là con số thô.
 
 ---
 
-## Cân bằng PvP (nerf tank)
+## 3 class
 
-Chỉ áp dụng trong PvP, không áp ở co-op:
-- Khiên **rò rỉ 10/giây**.
-- Giảm sát thương (`dr`) chỉ còn **70% hiệu lực**.
-- Keystone *Bất Hoại Thành*: trần khiên **120 → 70**.
+| Class | HP | MP | Tốc | Sát thương | Tầm | Vai |
+|---|---|---|---|---|---|---|
+| ⚔ **Kiếm sĩ** | 130 | 60 | 2.6 | 11 | 46 | Cận chiến |
+| 🏹 **Xạ thủ** | 92 | 72 | 3.1 | 9 | 330 | DPS tầm xa |
+| 🔮 **Nhà sư** | 100 | 115 | 2.8 | 8 | 260 | Phép / hỗ trợ |
+
+| Class | `E` | `R` |
+|---|---|---|
+| Kiếm sĩ | Chém Xoay (12 mana, 6s) | Khiên Thánh (20 mana, 12s) |
+| Xạ thủ | Mũi Xuyên (14 mana, 5s) | Mưa Tên (25 mana, 13s) |
+| Nhà sư | Sóng Âm (12 mana, 6s) | Chữa Lành (25 mana, 10s) |
+
+Số liệu giữ nguyên từ bản arena cũ để cảm giác không lệch. **Cây kỹ năng và hệ nhánh tạm lược bỏ ở map 1** — build giờ đến từ blessing.
+
+Ở map 1, cung hoàng đạo **chọn tự do**, không tính theo ngày sinh như bản cũ.
+
+---
+
+## Sprite
+
+Nhân vật và quái **vẽ hoàn toàn bằng Canvas 2D, không có một file ảnh nào**.
+
+- `sprites.js` — bộ **"Hero's Quest"**, khung 92×76, góc nhìn 3/4 top-down. **9 skin hero** (3 nhánh × 3 class) + 4 quái, mỗi con đủ 5 trạng thái `idle` · `move` · `attack` · `hit` · `die`. Frame được cache theo `key|state|slot|facing` nên vẽ hàng chục nhân vật vẫn nhẹ. Dùng cho `map1.html`.
+- `sprites-legacy.js` — bộ pixel 16×16 cũ, 6 skin hero. Dùng cho `index.html`.
+
+Chi tiết API và cách tích hợp: [`SPRITES_HANDOFF.md`](SPRITES_HANDOFF.md).
+
+9 skin hero là **ngoại hình theo nhánh nâng cấp**. Map 1 chưa có hệ nhánh nên đang chia theo slot; khi server gửi thêm trường `br` thì ngoại hình tự đổi, không phải sửa phần vẽ.
 
 ---
 
@@ -113,21 +185,34 @@ Chỉ áp dụng trong PvP, không áp ở co-op:
 
 | File | Vai trò |
 |---|---|
-| `server.js` | Toàn bộ game logic — server thẩm quyền, HTTP + WebSocket viết tay |
-| `index.html` | Client: render Canvas, input, HUD, cây kỹ năng |
-| `sprites.js` | Bộ sprite pixel 16×16 (nhân vật + quái), vẽ bằng code — không có file ảnh |
-| `ranks.json` | Dữ liệu xếp hạng (tự sinh — xoá file là reset bảng) |
-| `start.bat` | Double-click để chạy server trên Windows |
-| `test-bot.js` | Bot giả lập người chơi để test không cần mở nhiều máy |
-| `HANDOFF.md` | Tài liệu kiến trúc cho dev |
+| `map1-server.js` | **Prototype map 1** — server thẩm quyền, HTTP + WebSocket viết tay, có bot |
+| `map1.html` | Client map 1 — camera, minimap, bảng chọn blessing, merchant |
+| `sprites.js` | Bộ sprite "Hero's Quest" — 9 hero + 4 quái, vẽ bằng code |
+| `server.js` | Arena bản cũ (legacy) — co-op PvE + PvP FFA + cây kỹ năng + ELO |
+| `index.html` | Client arena bản cũ |
+| `sprites-legacy.js` | Bộ sprite 16×16 cũ, chỉ `index.html` dùng |
+| `test-bot.js` | Bot client cho **arena cũ** (map 1 đã có bot sẵn trong server) |
+| `game_idea.txt` | **Thiết kế 3 map đầy đủ** — đã chốt sau vòng review |
+| `TIEN-DO.md` | Nhật ký tiến độ, các quyết định làm khác handoff |
+| `HANDOFF.md` | Kiến trúc arena cũ, cho dev |
+| `SPRITES_HANDOFF.md` | API sprite và cách tích hợp |
+| `pitch.html` | Trang pitch của dự án |
+| `ranks.json` | Xếp hạng ELO của arena cũ (tự sinh, không commit) |
 
-Sửa `server.js` phải **restart**. Sửa `index.html` chỉ cần **F5** trình duyệt.
+Sửa file `*-server.js` phải **restart**. Sửa `.html` hoặc `sprites*.js` chỉ cần **F5**.
 
 ---
 
-## Test bằng bot
+## Arena bản cũ (legacy)
 
-Mở server ở một cửa sổ, rồi chạy ở cửa sổ khác:
+Bản trước khi xoay sang extraction, vẫn chạy đầy đủ ở cổng `8080`:
+
+- **Co-op PvE** 1–3 người, chống các đợt quái, có **cây kỹ năng 48 node**.
+- **PvP FFA xếp hạng** 2–3 người, BO5 60 giây/ván, 5 loại orb rơi giữa map, MMR ELO lưu vào `ranks.json`. Bảng xếp hạng ở `http://localhost:8080/leaderboard`.
+- 3 class × **2 nhánh** (khoá vĩnh viễn ở tầng 3), 12 cung hoàng đạo **tính từ ngày sinh**.
+- Nerf tank riêng cho PvP: khiên rò rỉ 10/giây, `dr` chỉ còn 70% hiệu lực, keystone Bất Hoại Thành trần khiên 120 → 70.
+
+Test bằng bot:
 
 ```bash
 node test-bot.js coop 40000
@@ -137,4 +222,4 @@ node test-bot.js coop 40000
 node test-bot.js duel 120000
 ```
 
-Bot là client WebSocket thô (`net` + `crypto`), tự vào phòng, rải điểm kỹ năng, đuổi đánh mục tiêu và in thống kê khi xong (số đợt, cấp, quái giết, các pha PvP, tỉ số, ELO). Tham số thứ hai là thời gian chạy tính bằng mili-giây.
+Chi tiết: [`HANDOFF.md`](HANDOFF.md).
