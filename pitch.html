@@ -1,0 +1,944 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>*{margin:0;padding:0;box-sizing:border-box}img,svg,canvas{display:block;max-width:100%}</style>
+<title>Zodiac Arena — Bản thiết kế</title>
+
+</head>
+<body>
+<style>
+  :root {
+    --void:    #090C13;
+    --panel:   #111722;
+    --panel-2: #161E2B;
+    --ink:     #E9EDF5;
+    --muted:   #8B97AB;
+    --dim:     #626D80;
+    --rule:    #212B3A;
+    --rule-2:  #2E3A4C;
+
+    --star:  #7FD4E8;
+    --ember: #E2703A;
+    --gold:  #C9A961;
+
+    --display: Constantia, "Iowan Old Style", Georgia, serif;
+    --body: "Segoe UI", ui-sans-serif, system-ui, Roboto, Helvetica, Arial, sans-serif;
+    --mono: Consolas, ui-monospace, "Cascadia Mono", "SF Mono", monospace;
+  }
+
+  body {
+    background: var(--void);
+    color: var(--ink);
+    font-family: var(--body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  .page { display: flex; flex-direction: column; }
+
+  section { padding: 0 24px; }
+
+  .inner {
+    max-width: 940px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  /* ============ shared type ============ */
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--star);
+  }
+
+  h2 {
+    font-family: var(--display);
+    font-size: clamp(26px, 3.4vw, 36px);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  h3 {
+    font-family: var(--display);
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+
+  p { margin: 0; }
+  .lede { color: var(--muted); font-size: 16.5px; max-width: 64ch; }
+
+  .sec-head {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 36px;
+  }
+
+  /* ============ hero ============ */
+
+  .hero {
+    position: relative;
+    min-height: 96vh;
+    display: flex;
+    align-items: center;
+    padding-top: 72px;
+    padding-bottom: 72px;
+    border-bottom: 1px solid var(--rule);
+    overflow: hidden;
+  }
+
+  #stars {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    opacity: 0.75;
+  }
+
+  .hero .inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 56px;
+    align-items: center;
+  }
+
+  .hero-copy { display: flex; flex-direction: column; gap: 22px; }
+
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(46px, 7.2vw, 82px);
+    font-weight: 700;
+    line-height: 0.98;
+    letter-spacing: -0.035em;
+    margin: 0;
+  }
+
+  h1 .a { display: block; }
+  h1 .b { display: block; color: var(--star); }
+
+  .tagline {
+    font-family: var(--display);
+    font-size: clamp(19px, 2.2vw, 24px);
+    line-height: 1.35;
+    text-wrap: balance;
+    max-width: 22ch;
+  }
+
+  .tagline em { font-style: normal; color: var(--ember); }
+
+  .hero-sub {
+    color: var(--muted);
+    font-size: 15.5px;
+    max-width: 46ch;
+  }
+
+  .statline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border-top: 1px solid var(--rule);
+    margin-top: 6px;
+  }
+
+  .stat {
+    padding: 16px 26px 0 0;
+    margin-right: 26px;
+    border-right: 1px solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .stat:last-child { border-right: 0; margin-right: 0; padding-right: 0; }
+
+  .stat b {
+    font-family: var(--display);
+    font-size: 27px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat span {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  /* ---- zodiac wheel ---- */
+
+  .wheel-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .wheel {
+    position: relative;
+    width: 300px;
+    height: 300px;
+    animation: spin 240s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wheel { animation: none; }
+  }
+
+  .wheel .ring {
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--rule-2);
+    border-radius: 50%;
+  }
+  .wheel .ring.inner-ring { inset: 42px; border-color: var(--rule); }
+
+  .wheel .g {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 30px;
+    height: 30px;
+    margin: -15px 0 0 -15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    color: var(--star);
+    opacity: 0.85;
+  }
+
+  .wheel-core {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--dim);
+    text-align: center;
+    line-height: 1.9;
+  }
+
+  /* ============ core idea ============ */
+
+  .band { padding-top: 92px; padding-bottom: 92px; border-bottom: 1px solid var(--rule); }
+  .band-alt { background: #0C1119; }
+
+  .layers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+
+  .layer {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--rule-2);
+    padding: 24px 24px 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .layer.perm { border-top-color: var(--star); }
+  .layer.temp { border-top-color: var(--ember); }
+
+  .layer .tag {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .layer p { color: var(--muted); font-size: 14.8px; }
+  .layer .punch { color: var(--ink); font-size: 15px; }
+
+  .refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    margin-top: 26px;
+    align-items: center;
+  }
+
+  .ref {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    border: 1px solid var(--rule-2);
+    border-radius: 2px;
+    padding: 5px 11px;
+  }
+  .ref b { color: var(--ink); font-weight: 600; }
+
+  .aside {
+    margin-top: 26px;
+    padding-left: 18px;
+    border-left: 2px solid var(--ember);
+    font-size: 15.5px;
+    max-width: 62ch;
+    color: var(--muted);
+  }
+  .aside strong { color: var(--ink); font-weight: 600; }
+
+  /* ============ descent ============ */
+
+  .descent { display: flex; flex-direction: column; gap: 0; }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 128px 1fr;
+    gap: 28px;
+    padding: 26px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .stage:last-child { border-bottom: 0; }
+
+  .stage-rail { display: flex; flex-direction: column; gap: 8px; padding-top: 3px; }
+
+  .stage-clock {
+    font-family: var(--display);
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--star);
+  }
+  .stage.hot .stage-clock { color: var(--ember); }
+  .stage.warm .stage-clock { color: var(--gold); }
+
+  .stage-meta {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--dim);
+    line-height: 1.8;
+  }
+
+  .stage-body { display: flex; flex-direction: column; gap: 11px; }
+  .stage-body h3 { display: flex; align-items: baseline; gap: 11px; }
+  .stage-body h3 .n {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+    font-weight: 400;
+  }
+
+  .stage-body ul { margin: 0; padding-left: 17px; color: var(--muted); font-size: 14.8px; }
+  .stage-body li { margin-bottom: 3px; }
+  .stage-body li::marker { color: var(--rule-2); }
+  .stage-body li b { color: var(--ink); font-weight: 600; }
+
+  .exit {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    color: var(--star);
+    border-top: 1px dashed var(--rule-2);
+    padding-top: 10px;
+    margin-top: 3px;
+  }
+  .stage.hot .exit { color: var(--ember); }
+  .stage.warm .exit { color: var(--gold); }
+
+  /* ============ slots ============ */
+
+  .slots {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 30px;
+  }
+
+  .slot {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    padding: 16px 15px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .slot .key {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--star);
+  }
+  .slot h4 {
+    font-family: var(--display);
+    font-size: 16.5px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .slot p { color: var(--muted); font-size: 13.2px; line-height: 1.5; }
+  .slot.new { border-color: var(--rule-2); }
+  .slot.new .key { color: var(--ember); }
+
+  .example {
+    background: var(--panel-2);
+    border: 1px solid var(--rule);
+    padding: 24px 26px 26px;
+  }
+
+  .example-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+  }
+  .example-head .glyph { font-size: 22px; color: var(--star); }
+  .example-head .theme {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .example > .note { color: var(--muted); font-size: 14.5px; margin-bottom: 16px; max-width: 62ch; }
+
+  .rows { display: flex; flex-direction: column; }
+  .row {
+    display: grid;
+    grid-template-columns: 132px 1fr;
+    gap: 18px;
+    padding: 9px 0;
+    border-top: 1px solid var(--rule);
+    font-size: 14.6px;
+  }
+  .row .k {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--dim);
+    padding-top: 4px;
+  }
+
+  .combo-line {
+    margin-top: 20px;
+    padding: 14px 17px;
+    border: 1px solid var(--gold);
+    background: rgba(201,169,97,0.06);
+    font-size: 14.8px;
+    color: var(--muted);
+  }
+  .combo-line b { color: var(--gold); font-family: var(--display); font-size: 16px; }
+
+  /* ============ economy ============ */
+
+  .econ-wrap { overflow-x: auto; }
+
+  table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+    min-width: 520px;
+    font-size: 14.6px;
+  }
+  th, td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--rule); }
+  thead th {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-weight: 400;
+    border-bottom: 1px solid var(--rule-2);
+  }
+  td:not(:first-child) { font-variant-numeric: tabular-nums; }
+  tbody th { font-weight: 400; color: var(--ink); }
+  .win-row td, .win-row th { color: var(--star); border-bottom: 0; }
+  .win-row { background: rgba(127,212,232,0.05); }
+
+  .econ-notes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-top: 28px;
+  }
+  .econ-note {
+    border-left: 2px solid var(--rule-2);
+    padding-left: 16px;
+    font-size: 14.8px;
+    color: var(--muted);
+  }
+  .econ-note b { color: var(--ink); display: block; margin-bottom: 3px; font-weight: 600; }
+
+  /* ============ status ============ */
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+
+  .col h3 { margin-bottom: 14px; display: flex; align-items: center; gap: 10px; }
+  .col h3::before {
+    content: "";
+    width: 22px; height: 2px;
+    background: var(--star);
+    flex: none;
+  }
+  .col.todo h3::before { background: var(--ember); }
+
+  .col ul { margin: 0; padding-left: 17px; color: var(--muted); font-size: 14.8px; }
+  .col li { margin-bottom: 5px; }
+  .col li::marker { color: var(--rule-2); }
+  .col li b { color: var(--ink); font-weight: 600; }
+
+  .blocker {
+    margin-top: 30px;
+    border: 1px solid var(--rule-2);
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .blocker .eyebrow { color: var(--ember); }
+  .blocker p { color: var(--muted); font-size: 14.8px; }
+  .blocker b { color: var(--ink); font-weight: 600; }
+
+  /* ============ roadmap ============ */
+
+  .steps { display: flex; flex-direction: column; }
+  .step {
+    display: grid;
+    grid-template-columns: 46px 1fr;
+    gap: 20px;
+    padding: 17px 0;
+    border-bottom: 1px solid var(--rule);
+    align-items: baseline;
+  }
+  .step:last-child { border-bottom: 0; }
+  .step .num {
+    font-family: var(--display);
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--rule-2);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .step.now .num { color: var(--star); }
+  .step-body { display: flex; flex-direction: column; gap: 3px; }
+  .step-body strong { font-size: 16px; font-weight: 600; }
+  .step-body span { color: var(--muted); font-size: 14.5px; }
+
+  /* ============ footer ============ */
+
+  footer {
+    padding: 40px 24px 56px;
+    color: var(--dim);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+  }
+  footer .inner { display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+
+  /* ============ responsive ============ */
+
+  @media (max-width: 860px) {
+    .hero .inner { grid-template-columns: 1fr; gap: 40px; }
+    .wheel-box { order: -1; }
+    .wheel { width: 230px; height: 230px; }
+    .layers, .cols, .econ-notes { grid-template-columns: 1fr; }
+    .slots { grid-template-columns: 1fr 1fr; }
+    .band { padding-top: 66px; padding-bottom: 66px; }
+  }
+
+  @media (max-width: 560px) {
+    .slots { grid-template-columns: 1fr; }
+    .stage { grid-template-columns: 1fr; gap: 12px; }
+    .row { grid-template-columns: 1fr; gap: 2px; }
+    .statline .stat { padding-right: 18px; margin-right: 18px; }
+  }
+</style>
+
+<div class="page">
+
+  <!-- ================= HERO ================= -->
+  <section class="hero">
+    <canvas id="stars"></canvas>
+    <div class="inner">
+      <div class="hero-copy">
+        <div class="eyebrow">Pixel PvPvE Extraction · Bản thiết kế</div>
+        <h1><span class="a">Zodiac</span><span class="b">Arena</span></h1>
+        <p class="tagline">Mỗi ván bạn xây một build khác nhau. Và build đó <em>chết theo ván</em>.</p>
+        <p class="hero-sub">32 người rơi xuống một đấu trường đang thu hẹp. Ba map, mỗi map ít người hơn map trước. Một artifact. Một người mang nó về đích.</p>
+        <div class="statline">
+          <div class="stat"><b>23</b><span>phút mỗi ván</span></div>
+          <div class="stat"><b>32</b><span>người · 8 team</span></div>
+          <div class="stat"><b>60</b><span>blessing</span></div>
+          <div class="stat"><b>12</b><span>cung hoàng đạo</span></div>
+        </div>
+      </div>
+
+      <div class="wheel-box">
+        <div class="wheel">
+          <div class="ring"></div>
+          <div class="ring inner-ring"></div>
+          <div class="wheel-core">12 cung<br>5 slot</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CORE ================= -->
+  <section class="band">
+    <div class="inner">
+      <div class="sec-head">
+        <div class="eyebrow">Ý tưởng cốt lõi</div>
+        <h2>Hai lớp build chồng lên nhau</h2>
+        <p class="lede">Một lớp bạn giữ mãi, một lớp bạn nhặt được rồi mất. Chỗ giao nhau của chúng là lý do không ván nào giống ván nào.</p>
+      </div>
+
+      <div class="layers">
+        <div class="layer perm">
+          <div class="tag">Lớp dài hạn · bạn chọn</div>
+          <h3>Cây kỹ năng</h3>
+          <p>3 class × 2 nhánh, 48 node. Chọn nhánh ở tầng 3 khoá vĩnh viễn nhánh còn lại. Đây là bản sắc người chơi — giống nhau ở mọi ván, tích luỹ qua thời gian.</p>
+          <p class="punch">Cái này đã chạy được trong bản demo.</p>
+        </div>
+        <div class="layer temp">
+          <div class="tag">Lớp ngắn hạn · ngẫu nhiên</div>
+          <h3>Blessing hoàng đạo</h3>
+          <p>Nhặt từ rương và quái trong ván. Không tạo chiêu mới — chỉ đổi cách chiêu sẵn có hoạt động, gắn vào 5 slot kỹ năng.</p>
+          <p class="punch">Hết ván là mất sạch. Ván sau nhặt lại từ đầu.</p>
+        </div>
+      </div>
+
+      <div class="refs">
+        <span class="ref"><b>33 Immortals</b> — đông người, PvE co-op</span>
+        <span class="ref"><b>Hades</b> — blessing đổi lối chơi</span>
+        <span class="ref"><b>Battle royale</b> — map co dần</span>
+      </div>
+
+      <p class="aside">Ba thứ này đã có ai đó làm rồi. Thứ chưa ai làm đúng là <strong>ghép cả ba vào một game top-down pixel</strong> — nơi bạn nhìn thấy toàn bộ trận đánh cùng lúc, và một quyết định nhặt blessing ở phút thứ 4 quyết định bạn còn sống ở phút thứ 20 hay không.</p>
+    </div>
+  </section>
+
+  <!-- ================= DESCENT ================= -->
+  <section class="band band-alt">
+    <div class="inner">
+      <div class="sec-head">
+        <div class="eyebrow">Vòng lặp một ván</div>
+        <h2>Càng xuống sâu, càng ít người, càng ít chỗ trốn</h2>
+        <p class="lede">Mỗi map loại bớt người và thu nhỏ lại. Map 1 là chợ, map 3 là đấu trường.</p>
+      </div>
+
+      <div class="descent">
+
+        <div class="stage">
+          <div class="stage-rail">
+            <div class="stage-clock">—</div>
+            <div class="stage-meta">Lobby<br>không giới hạn</div>
+          </div>
+          <div class="stage-body">
+            <h3>Chuẩn bị <span class="n">00</span></h3>
+            <ul>
+              <li>Chọn class tại NPC, chọn <b>cung hoàng đạo tự do</b> — không phụ thuộc ngày sinh</li>
+              <li>Cửa hàng vũ khí, mua bằng token kiếm được từ các ván trước</li>
+              <li>Bước vào cổng dịch chuyển cùng team, hoặc đi một mình</li>
+            </ul>
+            <div class="exit">→ Teleport ra map 1</div>
+          </div>
+        </div>
+
+        <div class="stage">
+          <div class="stage-rail">
+            <div class="stage-clock">10:00</div>
+            <div class="stage-meta">Map 1<br>32 người · 8 team</div>
+          </div>
+          <div class="stage-body">
+            <h3>Săn đồ <span class="n">01 · map rộng nhất</span></h3>
+            <ul>
+              <li>Rương loot ngẫu nhiên: blessing, tăng chỉ số, cường hoá vũ khí, <b>1–2 token</b></li>
+              <li>Nhiều bãi quái để lên cấp. Quái rơi xu, quái lớn 15% rơi blessing</li>
+              <li><b>1–2 world boss</b> giá trị gấp 5 lần, có đếm ngược công khai cho cả map — đây là lý do PvP nổ ra sớm thay vì ai nấy farm riêng</li>
+              <li>Merchant ở 3 vị trí cố định, mở luân phiên. Cố định để trở thành điểm nóng ai cũng biết</li>
+              <li>Mỗi phút, 33% quái được buff blessing hoàng đạo</li>
+            </ul>
+            <div class="exit">→ Hết giờ hoặc còn 5 team: 5 cổng mở trong 30 giây, mưa thiên thạch bắt đầu rơi</div>
+          </div>
+        </div>
+
+        <div class="stage warm">
+          <div class="stage-rail">
+            <div class="stage-clock">08:00</div>
+            <div class="stage-meta">Map 2<br>20 người · 5 team</div>
+          </div>
+          <div class="stage-body">
+            <h3>Siết chặt <span class="n">02 · nhỏ hơn</span></h3>
+            <ul>
+              <li>Quái mạnh gấp đôi cả sát thương lẫn máu. Quái lớn 25% rơi blessing</li>
+              <li>Rương rơi <b>3–6 token</b> — gấp ba map 1</li>
+              <li>Mỗi phút, <b>66%</b> quái được buff blessing</li>
+              <li>Người chết ở map trước hồi sinh tại đây với <b>−50% máu</b>, giải bằng một quest ngẫu nhiên: mở rương, giết quái lớn, hoặc giết đủ số quái</li>
+            </ul>
+            <div class="exit">→ Hết giờ hoặc còn 2 team: 2 cổng mở sang map cuối</div>
+          </div>
+        </div>
+
+        <div class="stage hot">
+          <div class="stage-rail">
+            <div class="stage-clock">05:00</div>
+            <div class="stage-meta">Map 3<br>4 người · 2 team</div>
+          </div>
+          <div class="stage-body">
+            <h3>Artifact <span class="n">03 · map nhỏ nhất</span></h3>
+            <ul>
+              <li><b>Không có rương.</b> Đây là map objective, không phải map farm — không còn gì để vét, không còn lý do trì hoãn</li>
+              <li>Artifact spawn <b>chính giữa map sau 30 giây</b>, phát sáng thấy từ xa</li>
+              <li>Người cầm artifact <b>bị lộ vị trí và chậm 20%</b> — "ai cầm" thành quyết định chiến thuật, không phải cuộc rượt đuổi</li>
+              <li>Thắng bằng cách đem artifact về điểm extraction, hoặc tiêu diệt hết đối thủ — cái nào đến trước</li>
+            </ul>
+            <div class="exit">→ Toàn bộ token ×2, về lobby</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= BLESSING ================= -->
+  <section class="band">
+    <div class="inner">
+      <div class="sec-head">
+        <div class="eyebrow">Hệ blessing</div>
+        <h2>Mỗi cung là một chủ đề, không phải một cục phần trăm</h2>
+        <p class="lede">Blessing gắn vào 5 slot kỹ năng. Mỗi slot giữ đúng một cái — nhặt được cái mới cho slot đã có nghĩa là phải bỏ đi cái cũ. Đó là nơi quyết định thú vị nằm.</p>
+      </div>
+
+      <div class="slots">
+        <div class="slot"><div class="key">Chuột trái</div><h4>Đánh thường</h4><p>DPS nền, dùng liên tục suốt trận</p></div>
+        <div class="slot"><div class="key">Phím E</div><h4>Kỹ năng class</h4><p>Chiêu chính của class đang chơi</p></div>
+        <div class="slot"><div class="key">Phím R</div><h4>Kỹ năng nhánh</h4><p>Mở ở cấp 3 sau khi rẽ nhánh</p></div>
+        <div class="slot new"><div class="key">Thường trực</div><h4>Bị động</h4><p>Sinh tồn, chỉ số, và loot — chỗ duy nhất cho blessing không chiến đấu</p></div>
+        <div class="slot new"><div class="key">Phím Shift</div><h4>Lướt</h4><p>Cơ động, né, tiếp cận</p></div>
+      </div>
+
+      <div class="example">
+        <div class="example-head">
+          <span class="glyph">♏</span>
+          <h3>Bọ Cạp</h3>
+          <span class="theme">Chủ đề — nọc độc</span>
+        </div>
+        <p class="note">Cùng một chủ đề, thể hiện khác nhau tuỳ gắn vào slot nào. Mười một cung còn lại cũng vậy, mỗi cung năm cách.</p>
+        <div class="rows">
+          <div class="row"><div class="k">Đánh thường</div><div>Chí mạng gieo độc, cộng dồn tối đa 5 tầng</div></div>
+          <div class="row"><div class="k">E</div><div>Để lại vũng độc tồn tại 5 giây</div></div>
+          <div class="row"><div class="k">R</div><div>Mục tiêu chết vì độc phát nổ, lan độc sang địch trong 150px</div></div>
+          <div class="row"><div class="k">Bị động</div><div>Miễn nhiễm độc; địch dính độc đứng gần nhau tự lây cho nhau</div></div>
+          <div class="row"><div class="k">Lướt</div><div>Để lại vệt độc 4 giây, địch chạm vào dính 2 tầng</div></div>
+        </div>
+        <div class="combo-line">Gắn đủ cả 5 slot cùng một cung mở <b>Bộ Hợp Cung</b> — với Bọ Cạp là <b>Vạn Độc</b>: độc không còn giới hạn tầng, địch chết vì độc hồi lại 15% máu cho bạn. Mười hai bộ, mỗi bộ đổi hẳn lối chơi.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ECONOMY ================= -->
+  <section class="band band-alt">
+    <div class="inner">
+      <div class="sec-head">
+        <div class="eyebrow">Kinh tế</div>
+        <h2>Không phạt người thua. Thưởng thật đậm cho người đi tiếp</h2>
+        <p class="lede">Bị loại thì giữ nguyên token đã kiếm, không mất một xu. Động lực đi sâu đến từ phần thưởng phía trước, không phải nỗi sợ mất mát.</p>
+      </div>
+
+      <div class="econ-wrap">
+        <table>
+          <thead>
+            <tr><th>Chặng</th><th>Rương</th><th>Giết người</th><th>Ước tính thu</th></tr>
+          </thead>
+          <tbody>
+            <tr><th>Map 1 · 10 phút</th><td>1–2 token</td><td>1 token</td><td>~9</td></tr>
+            <tr><th>Map 2 · 8 phút</th><td>3–6 token</td><td>3 token</td><td>~20</td></tr>
+            <tr><th>Map 3 · 5 phút</th><td>không có</td><td>5 token</td><td>~10</td></tr>
+            <tr class="win-row"><th>Chiến thắng</th><td colspan="2">toàn bộ token ×2</td><td>~78</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="econ-notes">
+        <div class="econ-note"><b>Vì sao nhân đôi thay vì thưởng cố định</b>Nhân đôi thưởng cho cả ván. Ai cày rương chăm và dám đánh nhau thì thành quả được nhân lên. Thưởng cố định thì người trốn cả ván rồi thắng nhờ may lĩnh y hệt người đánh sạch map.</div>
+        <div class="econ-note"><b>Vì sao quái không bao giờ rơi token</b>Quái chỉ rơi xu — tiêu tại merchant trong ván rồi mất. Nếu quái rơi token thì farm PvE thành đường tối ưu và toàn bộ hệ PvP trở nên vô nghĩa.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= STATUS ================= -->
+  <section class="band">
+    <div class="inner">
+      <div class="sec-head">
+        <div class="eyebrow">Trạng thái thật</div>
+        <h2>Bản demo chạy được. Khoảng cách tới thiết kế này còn lớn</h2>
+        <p class="lede">Node.js thuần, zero dependency, không npm install, không build. Chạy <code>node server.js</code> là chơi được ngay trong LAN.</p>
+      </div>
+
+      <div class="cols">
+        <div class="col">
+          <h3>Đã có, giữ lại được</h3>
+          <ul>
+            <li><b>Cây kỹ năng 48 node</b>, 3 class × 2 nhánh, gate theo cấp</li>
+            <li>Netcode <b>server thẩm quyền 30Hz</b>, WebSocket viết tay, client nội suy 60fps</li>
+            <li>Co-op PvE theo đợt và <b>PvP FFA xếp hạng BO5</b> với ELO</li>
+            <li>Sprite pixel 16×16 vẽ bằng code, 5 state animation, không cần file ảnh</li>
+            <li><b>12 hiệu ứng cung đã chạy được</b> — chỉ cần chuyển từ buff nền sang gắn slot</li>
+            <li>Bot test tự động, không cần mở nhiều máy</li>
+          </ul>
+        </div>
+        <div class="col todo">
+          <h3>Chưa có</h3>
+          <ul>
+            <li>Camera và map lớn hơn một màn hình — hiện là arena cố định <b>960×560</b></li>
+            <li>Rương, merchant, artifact, xu, token — <b>chưa có tiền tệ nào</b></li>
+            <li>Cơ chế <b>dash</b>, khái niệm <b>team</b>, vòng co map, mưa thiên thạch</li>
+            <li>Tài khoản và mã phòng — hiện <b>MAXP = 3</b>, đúng 2 phòng toàn cục</li>
+            <li>Âm thanh</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="blocker">
+        <div class="eyebrow">Hai thứ chặn thật sự</div>
+        <p><b>Băng thông.</b> Server 30Hz gửi full snapshot cho 3 người sẽ không gánh nổi 32 người. Cần interest management — chỉ gửi thực thể trong tầm nhìn — cộng delta encoding.</p>
+        <p><b>Tài khoản.</b> Không có tài khoản thì meta progression không thể tồn tại. Hiện xếp hạng lưu theo tên nhân vật: ai gõ trùng tên là lấy ví người khác.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ROADMAP ================= -->
+  <section class="band band-alt">
+    <div class="inner">
+      <div class="sec-head">
+        <div class="eyebrow">Lộ trình</div>
+        <h2>Chứng minh mười phút đầu vui trước đã</h2>
+        <p class="lede">Nếu vòng lặp một map không vui thì ba map cũng không cứu được. Mọi thứ khác xếp sau câu hỏi đó.</p>
+      </div>
+
+      <div class="steps">
+        <div class="step now">
+          <div class="num">01</div>
+          <div class="step-body"><strong>Prototype vòng lặp một map, sáu người</strong><span>Camera và map lớn trước, rồi rương, blessing rơi, xu, merchant cố định, timer co map thành vùng chết. Chưa cần map 2 và map 3.</span></div>
+        </div>
+        <div class="step">
+          <div class="num">02</div>
+          <div class="step-body"><strong>Hệ blessing</strong><span>36 cái cho Đánh thường / E / R trước, rồi 12 Bị động, kèm codex ghi lại blessing đã mở khoá.</span></div>
+        </div>
+        <div class="step">
+          <div class="num">03</div>
+          <div class="step-body"><strong>Tài khoản và mã phòng</strong><span>Bắt buộc phải có trước khi token tồn tại được.</span></div>
+        </div>
+        <div class="step">
+          <div class="num">04</div>
+          <div class="step-body"><strong>Cơ chế dash và 12 blessing Lướt</strong><span>Dash gần như bắt buộc với thiết kế này rồi — có thiên thạch phải né, có vòng co map phải chạy.</span></div>
+        </div>
+        <div class="step">
+          <div class="num">05</div>
+          <div class="step-body"><strong>Nhiều map và chuyển map giữa trận</strong><span>Cổng teleport, luật thành viên còn sống, quest giải debuff, artifact.</span></div>
+        </div>
+        <div class="step">
+          <div class="num">06</div>
+          <div class="step-body"><strong>Tăng lên 32 người</strong><span>Interest management và delta encoding. Bước cuối cùng, không phải bước đầu tiên.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="inner">
+      <span>Zodiac Arena · bản thiết kế 09/08/2026</span>
+      <span>Nguồn: game_idea.txt · HANDOFF.md · TIEN-DO.md</span>
+    </div>
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    // --- zodiac wheel: 12 glyphs on a circle, each counter-rotated to stay upright
+    var glyphs = ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'];
+    var wheel = document.querySelector('.wheel');
+    if (wheel) {
+      var r = wheel.clientWidth / 2 - 21;
+      for (var i = 0; i < 12; i++) {
+        var el = document.createElement('div');
+        el.className = 'g';
+        el.textContent = glyphs[i];
+        var deg = i * 30;
+        el.style.transform = 'rotate(' + deg + 'deg) translateY(-' + r + 'px)';
+        wheel.appendChild(el);
+      }
+    }
+
+    // --- hero starfield
+    var cv = document.getElementById('stars');
+    if (!cv) return;
+    var ctx = cv.getContext('2d');
+    var stars = [];
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function seed() {
+      var host = cv.parentElement;
+      var w = host.clientWidth, h = host.clientHeight;
+      cv.width = w * dpr; cv.height = h * dpr;
+      cv.style.width = w + 'px'; cv.style.height = h + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      stars = [];
+      var n = Math.round(w * h / 7000);
+      for (var i = 0; i < n; i++) {
+        stars.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          r: Math.random() < 0.12 ? 1.6 : 0.9,
+          a: 0.15 + Math.random() * 0.5,
+          v: 0.15 + Math.random() * 0.5,
+          p: Math.random() * Math.PI * 2
+        });
+      }
+    }
+
+    function draw(t) {
+      var w = cv.clientWidth, h = cv.clientHeight;
+      ctx.clearRect(0, 0, w, h);
+      for (var i = 0; i < stars.length; i++) {
+        var s = stars[i];
+        var tw = still ? s.a : s.a * (0.65 + 0.35 * Math.sin(t / 1400 * s.v + s.p));
+        ctx.globalAlpha = tw;
+        ctx.fillStyle = s.r > 1.2 ? '#7FD4E8' : '#C9D4E6';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      if (!still) requestAnimationFrame(draw);
+    }
+
+    seed();
+    if (still) draw(0); else requestAnimationFrame(draw);
+    window.addEventListener('resize', function () { seed(); if (still) draw(0); });
+  })();
+</script>
+</body>
+</html>

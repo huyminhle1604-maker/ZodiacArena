@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "map1",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["map1-server.js"],
+      "port": 8081
+    }
+  ]
+}

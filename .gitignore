@@ -1,0 +1,10 @@
+# Dữ liệu xếp hạng sinh lúc chạy — đừng commit lẫn dữ liệu test với dữ liệu thật
+ranks.json
+
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+
+# Bản copy do Claude Design gửi về — không đưa lên repo
+uploads/

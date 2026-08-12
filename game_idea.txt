@@ -1,0 +1,558 @@
+ZODIAC ARENA — Ý TƯỞNG THIẾT KẾ (v2)
+Cập nhật: 09/08/2026 — đã chốt sau vòng review design
+
+================================================================
+TÓM TẮT
+================================================================
+PvPvE extraction 3 map. Lấy cảm hứng: 33 Immortals (đông người, PvE co-op),
+Hades (build ngẫu nhiên theo blessing), battle royale (map co dần).
+
+Điểm bán hàng cốt lõi:
+  Mỗi ván bạn xây một build khác nhau — và build đó chết theo ván.
+
+Người chơi vào map, đánh quái, mở rương, nhặt blessing của cung hoàng đạo,
+đánh nhau với team khác, và cố sống sót qua 3 map để giành chiến thắng.
+
+
+================================================================
+LUỒNG CHƠI
+================================================================
+
+LOBBY
+  - Chọn class (đổi tại NPC)
+  - Chọn cung hoàng đạo — TỰ DO, không phụ thuộc ngày sinh
+  - Cửa hàng: vũ khí (trước mắt), sau thêm món khác — mua bằng token
+  - Đi đến cổng dịch chuyển -> prompt chọn cung -> teleport ra map 1
+    |
+    v
+MAP 1 — 10 phút, 8 team / 32 player, map rộng nhất
+  - Rương loot random: blessing, tăng chỉ số, cường hoá vũ khí, token (1-2)
+  - Nhiều bãi quái để lên cấp
+  - Quái rơi XU (không rơi token). Quái nhỏ ít, quái lớn nhiều
+  - Quái lớn có 15% rơi blessing
+  - Blessing random spawn toàn map, ai nhặt được thì chọn
+  - 1-2 WORLD BOSS / RƯƠNG LỚN: giá trị gấp ~5 lần thứ khác, có đếm ngược
+    công khai cho cả map thấy -> đây là lý do PvP xảy ra sớm
+  - Merchant: 3 VỊ TRÍ CỐ ĐỊNH, hiện trên minimap, mở luân phiên
+    (cố định để trở thành điểm nóng tranh chấp — ai cũng biết đối thủ sẽ tới)
+  - Mỗi 1 phút, 33% quái được buff blessing hoàng đạo
+  - Hết 10 phút HOẶC còn 5 team -> mở 5 cổng teleport random trong 30 giây
+    + Mưa thiên thạch rơi, có highlight vị trí để né
+    + Cổng kích hoạt khi số thành viên CÒN SỐNG của team đã tới đủ
+      (team 4 người chết 1 -> 3 người còn lại tới cổng là đi được)
+    + Ai không tới kịp hoặc chết -> bị loại
+    |
+    v
+MAP 2 — 8 phút, 5 team / 20 player, nhỏ hơn map 1
+  - Có mọi thứ của map 1
+  - Rương rơi 3-6 token
+  - Quái mạnh hơn: x2 tấn công, x2 HP
+  - Quái lớn 25% rơi blessing
+  - Mỗi 1 phút, 66% quái được buff blessing hoàng đạo
+  - Hết 8 phút HOẶC còn 2 team / 4 player -> mở 2 cổng sang map 3
+    |
+    v
+MAP 3 — 5 phút, 2 team / 4 player, map nhỏ nhất
+  - KHÔNG CÓ RƯƠNG. Đây là map objective, không phải map farm.
+    (Nếu có rương, người cầm artifact sẽ đi vét sạch trước khi kết thúc
+     trận vì token cuối ván được nhân đôi -> hai team rùa bò)
+  - Nguồn token duy nhất: giết người (5 token/kill)
+  - ARTIFACT spawn ở CHÍNH GIỮA MAP sau 30 giây, phát sáng thấy từ xa
+  - Người cầm artifact: BỊ LỘ VỊ TRÍ trên map + CHẬM 20%
+    (ép giao tranh, biến "ai cầm" thành quyết định chiến thuật)
+  - Thắng bằng: đem artifact về điểm extraction HOẶC tiêu diệt hết đối thủ
+    — điều kiện nào đến trước
+  - Thắng -> nhận thưởng token -> về lobby
+
+
+================================================================
+CHẾT VÀ HỒI SINH
+================================================================
+Người chết ở map trước được hồi sinh ở map sau với DEBUFF -50% máu.
+Giải debuff bằng một QUEST NGẪU NHIÊN:
+  - Mở 1 rương bất kỳ
+  - Giết 1 quái lớn
+  - Giết đủ N quái
+
+Trừng phạt nhẹ, không xoá sổ. Không bao giờ để một người chết làm cả team
+bị loại — đó là nguồn đổ lỗi và thoát game.
+
+
+================================================================
+KINH TẾ — HAI LOẠI TIỀN
+================================================================
+
+XU (coin) — trong ván, mất khi hết ván
+  Nguồn: quái rơi (quái nhỏ ít, quái lớn nhiều), mở rương
+  Tiêu tại merchant:
+    - Tăng chỉ số HP/MP, thủ, tấn công
+    - Cường hoá vũ khí
+    - Blessing cho bản thân (KHÔNG mua cho cả team)
+    - Cường hoá blessing của bản thân
+    - Mua hồi sinh
+
+TOKEN — meta, mang về lobby, mua vũ khí/đồ ở cửa hàng
+  QUÁI KHÔNG BAO GIỜ RƠI TOKEN.
+  (Nếu quái rơi token thì farm PvE thành đường tối ưu, cả hệ PvP vô nghĩa)
+
+            | Rương        | Kill người
+  ----------|--------------|------------
+  Map 1     | 1-2 token    | 1 token
+  Map 2     | 3-6 token    | 3 token
+  Map 3     | không có     | 5 token
+
+  THẮNG -> TOÀN BỘ TOKEN x2
+
+  BỊ LOẠI -> GIỮ NGUYÊN token đã kiếm được, KHÔNG BỊ TRỪ GÌ CẢ.
+
+  Ước tính: chết map 1 ~9 token. Vô địch ~(9+20+10) x2 = ~78 token.
+  Chênh khoảng 8 lần mà không phạt ai.
+
+  Vì sao x2 thay vì cộng phần thưởng cố định:
+  x2 thưởng cho CẢ VÁN — cày rương chăm, dám đánh nhau thì thành quả được
+  nhân đôi. Phần thưởng cố định thì người trốn cả ván rồi thắng nhờ may
+  lĩnh y hệt người đánh sạch map.
+
+  Nếu chơi thử thấy phần thưởng vô địch chưa đủ thèm: CHỈNH RƯƠNG MAP 2 LÊN,
+  đừng đụng vào hệ số x2 — giữ nó là một câu luật sạch.
+
+  CẦN THEO DÕI KHI TEST: x2 có tính snowball. Người mạnh ở map 1 dễ thắng
+  hơn, rồi được nhân đôi, khoảng cách với người mới giãn dần.
+
+  GIAI ĐOẠN SAU: cân nhắc thêm loại tiền thứ 3 — "Tinh Hoa Hoàng Đạo",
+  chỉ nhận khi qua map 2 / map 3 / thắng, dùng mua đồ bậc cao nhất.
+  Người thua vẫn tiến bộ đều, người thắng mở khoá thứ không mua được.
+
+
+================================================================
+CUNG HOÀNG ĐẠO
+================================================================
+
+BỎ HẲN VIỆC NHẬP NGÀY SINH.
+Người chơi chọn cung tự do mỗi ván. 12 cung phải cân bằng ngang nhau.
+
+Lý do: ngày sinh gán cho người chơi một cung có thể không hợp class họ
+muốn build -> không phát huy tối đa sức mạnh -> chán nản. Build bị khoá
+bởi một con số người chơi không chọn được là nguồn ức chế thật.
+
+CUNG HOÀNG ĐẠO KHÔNG PHẢI MỘT HỆ RIÊNG.
+Không có mastery, không có cây riêng, không có chỉ số song song.
+
+GIỮ NGUYÊN CÂY KỸ NĂNG HIỆN TẠI của mỗi class (3 class x 2 nhánh x 48 node).
+Blessing hoàng đạo CHỈ LÀM MỘT VIỆC: enhance kỹ năng sẵn có của class —
+đúng cách Hades enhance skill của vũ khí đang cầm.
+
+Ví dụ: blessing Cự Giải gắn vào đánh thường -> đòn thường có hút máu.
+Không tạo ra chiêu mới, chỉ đổi cách chiêu cũ hoạt động.
+
+Cây kỹ năng = build dài hạn, người chơi tự chọn, giống nhau mọi ván.
+Blessing  = build ngắn hạn, ngẫu nhiên, chết theo ván.
+Hai lớp chồng lên nhau — đó là thứ khiến mỗi ván khác nhau.
+
+
+================================================================
+BLESSING
+================================================================
+
+CƠ CHẾ SLOT (mô hình Hades)
+
+Mỗi blessing gắn vào MỘT SLOT KỸ NĂNG. Có 5 slot:
+
+  SLOT            | PHÍM              | LOẠI        | VAI TRÒ THIẾT KẾ
+  ----------------|-------------------|-------------|---------------------------
+  [Đánh thường]   | chuột trái/Space  | Chủ động    | DPS nền, dùng liên tục
+  [E]             | E                 | Chủ động    | Kỹ năng class
+  [R]             | R                 | Chủ động    | Kỹ năng nhánh (mở cấp 3)
+  [Bị động]       | —                 | Thường trực | Sinh tồn, chỉ số, tiện ích, LOOT
+  [Lướt]          | Shift             | Chủ động    | Cơ động, né, tiếp cận
+
+  Vì sao có slot BỊ ĐỘNG: nếu chỉ có slot chủ động thì mọi blessing đều phải
+  là "đánh mạnh hơn". Slot bị động là chỗ DUY NHẤT chứa được blessing KHÔNG
+  chiến đấu — tốc chạy, tầm nhìn minimap, tỉ lệ loot rương, hồi mana ngoài
+  giao tranh. Trong game 23 phút có farm và extraction thì những thứ đó quan
+  trọng ngang sát thương.
+
+  Vì sao có slot LƯỚT: game hiện CHƯA CÓ dash, cần thêm. Nhưng dash gần như
+  bắt buộc với thiết kế này rồi, không riêng vì blessing — có mưa thiên thạch
+  phải né, PvP top-down 32 người, vòng co map phải chạy. Không có dash thì
+  né tránh chỉ còn là đi bộ.
+
+  LUẬT SLOT:
+  - MỖI SLOT CHỈ GIỮ ĐƯỢC 1 BLESSING.
+    Nhặt blessing mới cho slot đã có -> phải chọn thay hay bỏ.
+    Đây là nơi quyết định thú vị nằm.
+  - Blessing KHÔNG tạo chiêu mới, chỉ đổi cách chiêu sẵn có hoạt động
+  - Mỗi blessing có 3 CẤP. Cấp 1 rơi từ rương/quái, nâng cấp bằng xu ở merchant
+  - ĐƯỢC PHÉP TRỘN CUNG. 5 slot có thể là 5 cung khác nhau
+    (Bọ Cạp ở đánh thường + Cự Giải ở E + Song Tử ở R... đều hợp lệ)
+  - Codex ghi lại blessing đã unlock, để người chơi biết mỗi cung có gì
+
+Tổng: 12 cung x 5 slot = 60 blessing.
+
+THỨ TỰ LÀM (60 cái là rất nhiều để viết, code và cân bằng — làm theo lớp):
+  Đợt 1 — 36 blessing Đánh thường / E / R  (đã viết đủ bên dưới)
+  Đợt 2 — 12 blessing Bị động              (đã viết đủ bên dưới)
+          rẻ nhất vì không cần input, mà thêm nhiều đa dạng nhất -> ưu tiên
+  Đợt 3 — cơ chế dash + 12 blessing Lướt   (đã viết đủ bên dưới)
+          phải code dash vào game TRƯỚC — hiện chưa có
+
+MỖI CUNG LÀ MỘT CHỦ ĐỀ HIỆU ỨNG, không phải một cục %.
+Chủ đề đó thể hiện khác nhau tuỳ gắn vào slot nào:
+
+BẠCH DƯƠNG — BÙNG NỔ
+  Đánh thường : đòn đầu vào mỗi mục tiêu mới gây nổ AoE nhỏ
+  E           : E gây nổ lan, bán kính +50%
+  R           : giết địch bằng R -> reset hồi chiêu R
+
+KIM NGƯU — KIÊN CỐ
+  Đánh thường : đứng yên khi đánh -> tích Kiên Cố (giảm dmg nhận, tối đa 5 tầng)
+  E           : E tạo sóng chấn đẩy lùi và làm chậm
+  R           : dùng R tiêu hết tầng Kiên Cố, mỗi tầng +10% sát thương R
+
+SONG TỬ — NHÂN ĐÔI
+  Đánh thường : mỗi đòn thứ 3 đánh 2 lần
+  E           : E tung 2 lần, lần 2 sức mạnh 50%
+  R           : R để lại ảnh phân thân, lặp lại R sau 2 giây
+
+CỰ GIẢI — VỎ GIÁP
+  Đánh thường : hút máu 8%
+                (bỏ vế "máu thừa thành khiên" — đã nằm ở slot Bị động của
+                 Cự Giải, gắn cả hai thì cái sau gần như không thêm gì)
+  E           : E tạo khiên bằng 15% sát thương gây ra
+  R           : dưới 40% máu, R hồi máu thay vì tốn mana
+
+SƯ TỬ — UY VŨ
+  Đánh thường : +6% sát thương mỗi địch trong 200px (tối đa 5)
+  E           : E tạo hào quang 4 giây — đồng đội +dmg, địch -thủ
+  R           : R trúng càng nhiều mục tiêu càng mạnh (+20% mỗi mục tiêu)
+
+XỬ NỮ — CHUẨN XÁC
+  Đánh thường : chí mạng trả lại 10 mana
+  E           : chuỗi không trượt -> E +10% sát thương mỗi tầng (tối đa 5)
+  R           : R luôn chí mạng nhưng hồi chiêu +30%
+
+THIÊN BÌNH — CÂN BẰNG
+  Đánh thường : sát thương gây ra chia đôi thành hồi máu và hồi mana
+  E           : HP% xấp xỉ MP% -> E +30% sát thương
+  R           : R kéo HP và MP về cùng tỉ lệ; chênh càng nhiều hồi càng nhiều
+
+BỌ CẠP — NỌC ĐỘC
+  Đánh thường : chí mạng gieo độc, độc cộng dồn tối đa 5 tầng
+  E           : E để lại vũng độc tồn tại 5 giây
+  R           : mục tiêu chết vì độc phát nổ, lan độc sang địch trong 150px
+
+NHÂN MÃ — VIỄN XẠ
+  Đánh thường : xa hơn 400px -> xuyên mục tiêu, không giảm sát thương
+  E           : E tầm xa +50%, càng xa càng mạnh (tới +30%)
+  R           : R bắn thêm 2 mũi lệch góc
+
+MA KẾT — TRƯỜNG KỲ
+  Đánh thường : mỗi 20 giây KHÔNG giao tranh -> +10% sát thương đòn thường,
+                tối đa +30%. KHÔNG mất khi vào giao tranh.
+  E           : mỗi lần dùng, E rẻ đi 5% mana (tối đa -50%)
+  R           : R để dành càng lâu càng mạnh: +5% mỗi 10 giây,
+                tính tới tối đa 50 giây (+25%)
+
+BẢO BÌNH — HỖN NGUYÊN
+  Đánh thường : 12% mỗi đòn kích hoạt hiệu ứng ngẫu nhiên của 11 cung khác
+  E           : E mang hiệu ứng một cung ngẫu nhiên, đổi lại sau mỗi lần dùng
+  R           : R sao chép blessing slot R của địch gần nhất
+
+SONG NGƯ — THUỶ TRIỀU
+  Đánh thường : đòn thường tốn 3 mana nhưng +40% sát thương
+  E           : mana trên 80% -> E miễn phí
+  R           : dưới 30% mana -> R miễn phí và hồi lại 30% mana
+
+
+----------------------------------------------------------------
+SLOT BỊ ĐỘNG — 12 blessing
+----------------------------------------------------------------
+Chạy nền, không cần phím. Đây là chỗ chứa blessing KHÔNG chiến đấu.
+
+  Bạch Dương  : 5 giây đầu mỗi lần vào giao tranh +25% sát thương
+                (reset sau 8 giây không đánh nhau)
+  Kim Ngưu    : giảm 15% sát thương nhận từ mọi nguồn; không bị đẩy lùi
+  Song Tử     : mở rương -> hiện 2 lựa chọn để chọn lấy 1
+                (thay vì nhận thẳng một thứ ngẫu nhiên)          [LOOT/TIỆN ÍCH]
+  Cự Giải     : hồi 2% máu tối đa mỗi 3 giây; máu thừa thành khiên (trần 40)
+  Sư Tử       : có đồng đội trong 300px -> +8% sát thương và +8% tốc chạy
+  Xử Nữ       : thấy chỉ số chính xác của địch (máu, blessing đang gắn);
+                rương hiện trên minimap trong 400px               [LOOT/TIỆN ÍCH]
+  Thiên Bình  : HP% và MP% chênh dưới 15% -> +20% sát thương, -20% dmg nhận
+  Bọ Cạp      : miễn nhiễm độc; địch dính độc đứng gần nhau tự lây cho nhau
+  Nhân Mã     : +15% tốc chạy; tầm nhìn minimap +50%
+                (thấy rương và merchant từ xa hơn)                    [LOOT/TIỆN ÍCH]
+  Ma Kết      : mỗi 30 giây sống sót +3% mọi chỉ số
+                (tối đa 10 tầng, chết mất hết)
+  Bảo Bình    : mở rương -> nhận thêm hiệu ứng bị động ngẫu nhiên 60 giây;
+                rương rơi thêm 1 token                                [LOOT/TIỆN ÍCH]
+  Song Ngư    : mana tối đa x1.5; ngoài giao tranh hồi mana gấp 3
+
+
+----------------------------------------------------------------
+SLOT LƯỚT — 12 blessing
+----------------------------------------------------------------
+
+CƠ CHẾ DASH NỀN (chưa có trong game, phải làm trước):
+  Phím Shift. Lướt ~140px theo hướng đang di chuyển (đứng yên thì theo hướng
+  chuột). Hồi chiêu 4 giây. Bất tử 0.15 giây trong lúc lướt (i-frame).
+  Không xuyên tường. Không tốn mana.
+
+  Mọi blessing dưới đây sửa đổi cơ chế nền này.
+
+  Bạch Dương : kết thúc lướt gây nổ AoE tại điểm đến
+  Kim Ngưu   : lướt húc văng địch trên đường đi, đẩy lùi và choáng 0.5 giây;
+               lướt xong đứng yên -> nhận ngay 3 tầng Kiên Cố
+  Song Tử    : lướt có 2 lượt tích (dùng liên tiếp được), hồi chiêu dùng chung
+  Cự Giải    : lướt xong nhận khiên 20 trong 3 giây
+  Sư Tử      : lướt xuyên qua địch; mỗi địch bị xuyên qua -15% thủ trong 4 giây
+  Xử Nữ      : đòn đánh đầu tiên trong 2 giây sau khi lướt LUÔN chí mạng
+  Thiên Bình : lướt hồi 3% HP và 3% MP; nếu HP% và MP% chênh dưới 15%
+               -> hồi chiêu lướt giảm một nửa
+  Bọ Cạp     : lướt để lại vệt độc tồn tại 4 giây, địch chạm vào dính 2 tầng
+  Nhân Mã    : lướt xa hơn 50%; lướt RA XA địch gần nhất -> đòn kế +30% sát thương
+  Ma Kết     : không lướt trong 5 giây -> lần lướt kế miễn hồi chiêu và gây
+               sát thương lên mọi địch đi xuyên qua
+  Bảo Bình   : lướt xa hơn 50% nhưng điểm đến lệch ngẫu nhiên +-30%;
+               25% mỗi lần lướt không tính hồi chiêu
+  Song Ngư   : lướt KHÔNG CÒN HỒI CHIÊU, đổi thành tốn 10 mana mỗi lần
+               (lướt liên tục được chừng nào còn mana)
+
+
+================================================================
+BỘ HỢP CUNG — thưởng cho việc dùng đủ 5 slot cùng 1 cung
+================================================================
+
+Được phép trộn cung thoải mái. Nhưng gắn ĐỦ CẢ 5 SLOT CÙNG MỘT CUNG thì
+mở BỘ HỢP CUNG của cung đó — một hiệu ứng biến đổi lối chơi, không phải
+một cục % nữa.
+
+Đây là mục tiêu theo đuổi trong ván: đánh đổi giữa "nhặt cái gì mạnh nhất
+ngay bây giờ" và "giữ đường thuần một cung để về đích".
+
+  BẠCH DƯƠNG — CHIẾN THẦN
+    Mọi vụ nổ bạn gây ra kích hoạt thêm một vụ nổ nhỏ hơn (dây chuyền tối đa
+    3 lần). Giết địch -> nổ ngay tại xác.
+
+  KIM NGƯU — SƠN NHẠC
+    Tầng Kiên Cố không mất khi trúng đòn và KHÔNG mất khi di chuyển,
+    nhưng mỗi tầng -1% TỐC ĐỘ DI CHUYỂN (tối đa -10%).
+    Đứng yên và đủ 10 tầng -> miễn nhiễm khống chế và không thể bị đẩy lùi.
+    (Cái giá tăng dần cùng sức mạnh: càng cứng thì càng chậm. Đối thủ bỏ chạy
+     được, và bạn khó đuổi theo ai. Miễn khống chế phải trả bằng việc đứng im)
+
+  SONG TỬ — SONG SINH
+    Tạo một bản sao vĩnh viễn đi theo bạn, lặp lại mọi kỹ năng với 40% sức mạnh.
+
+  CỰ GIẢI — GIÁP TRIỀU
+    Khiên không còn rò rỉ. Khiên vượt trần chuyển thành sát thương phản lại
+    kẻ vừa đánh bạn.
+
+  SƯ TỬ — BÁ VƯƠNG
+    Hào quang bật thường trực và rộng gấp đôi. Mỗi địch chết trong hào quang
+    -> +4% sát thương, TỐI ĐA 10 TẦNG (+40%). Rời giao tranh quá 5 giây thì
+    rơi dần 1 tầng mỗi 5 giây.
+    (Không còn cộng dồn vĩnh viễn — map đầy quái thì "vĩnh viễn" nghĩa là
+     +200% trước phút thứ 8. Có trần và có rơi thì phải liên tục lao vào
+     giao tranh mới giữ được, đúng chất Sư Tử)
+
+  XỬ NỮ — VÔ KHUYẾT
+    Chí mạng 100% với mục tiêu đang đầy máu. Mỗi đòn không trượt giảm 0.5 giây
+    hồi chiêu mọi kỹ năng.
+
+  THIÊN BÌNH — LƯỠNG NGHI
+    HP và MP dùng chung một bể. Hết máu thì tự tiêu mana thay thế.
+
+  BỌ CẠP — VẠN ĐỘC
+    Độc không còn giới hạn tầng. Địch chết vì độc hồi lại 15% máu cho bạn.
+
+  NHÂN MÃ — THIÊN CUNG
+    Đánh từ xa hơn 400px: xuyên qua địch (nhiều mục tiêu trên một đường đạn)
+    và +40% sát thương. Đánh gần hơn 200px: -30% sát thương.
+    KHÔNG XUYÊN ĐỊA HÌNH — tường vẫn chặn đạn như thường.
+    (Không auto-aim, không xuyên tường. Ngắm vẫn là kỹ năng của người chơi và
+     địa hình vẫn là chỗ nấp. Nhân Mã thành xạ thủ thuần: cực mạnh ở tầm xa,
+     yếu rõ khi bị áp sát -> đối thủ biết phải làm gì để phản đòn)
+
+  MA KẾT — BẤT DIỆT
+    Tầng tích luỹ không mất khi chết. Cả ván có ĐÚNG 1 LƯỢT tự hồi sinh tại
+    chỗ với 100% MÁU (không reset khi sang map).
+
+  BẢO BÌNH — VẠN BIẾN
+    GIỮ NGUYÊN cả 5 blessing Bảo Bình của bạn. Nhưng mỗi lần bạn dùng bất kỳ
+    slot nào, có 25% kích hoạt THÊM hiệu ứng cùng slot đó của một cung ngẫu
+    nhiên (đánh thường ra hiệu ứng đánh thường, E ra hiệu ứng E...).
+    Sau khi giết địch, tỉ lệ này tăng lên 50% trong 8 giây.
+    (Không xoá build của người chơi nữa — bản cũ thay cả 5 slot mỗi 30 giây,
+     tức là càng gom đủ bộ thì càng bị lấy mất thứ mình gom. Bản này CHỒNG
+     thêm cái ngẫu nhiên lên trên cái mình có: vẫn hỗn loạn, vẫn bất ngờ mỗi
+     đòn, nhưng người chơi luôn giữ quyền điều khiển. Đúng tinh thần "12% hiệu
+     ứng ngẫu nhiên" của Bảo Bình, chỉ là nâng lên toàn bộ 5 slot)
+
+  SONG NGƯ — VÔ TẬN
+    Giết địch -> hồi 50% mana. Mỗi kỹ năng tung ra +8% sát thương trong 4 giây,
+    cộng dồn tối đa 5 tầng (+40%).
+    (Bỏ "+1% dmg mỗi 1% mana" — trong map đầy quái thì mana luôn đầy, thành
+     +100% sát thương thường trực. Đổi thành thưởng cho việc TIÊU mana chứ
+     không phải giữ mana: muốn mạnh thì phải liên tục xả kỹ năng)
+
+LƯU Ý THIẾT KẾ:
+Gom đủ 5 slot cùng cung bằng loot ngẫu nhiên là rất khó — đúng ý đồ, nó phải
+hiếm. Nhưng phải VỚI TỚI ĐƯỢC, nếu không thì cả hệ thống thành trang trí.
+Merchant phải bán được: đổi blessing sang cung khác, hoặc reroll blessing của
+một slot. Đó là cách người chơi chủ động lái về Bộ Hợp Cung bằng xu.
+
+
+================================================================
+QUÁI ĐƯỢC BUFF BLESSING
+================================================================
+
+Map 1: mỗi 1 phút, 33% quái được buff. Map 2: 66%.
+
+GIỚI HẠN CÒN 4-5 LOẠI BUFF, mỗi loại có hiệu ứng hình ảnh DỄ NHẬN DIỆN:
+  - Vòng lửa      (Bạch Dương)
+  - Khiên đá      (Kim Ngưu)
+  - Phân thân     (Song Tử)
+  - Độc lan       (Bọ Cạp)
+  - Tự hồi máu    (Song Ngư)
+
+Lý do giới hạn: người chơi không đọc nổi con quái nào mang buff gì nếu có
+12 cung x N hiệu ứng. Hỗn loạn chứ không sâu.
+
+Giết quái mang buff -> 10-15% rơi ĐÚNG blessing đó.
+Vừa dạy người chơi hệ blessing, vừa tạo mục tiêu săn có chủ đích.
+
+
+================================================================
+BẢN DEMO HIỆN TẠI ĐANG CÓ GÌ
+================================================================
+(Kiểm chứng lại từ code ngày 09/08/2026. Chi tiết kỹ thuật: HANDOFF.md,
+ tiến độ và việc dở dang: TIEN-DO.md, hướng dẫn chơi: README.md)
+
+--- CHẠY ---
+  node server.js  ->  http://localhost:8080   (hoặc double-click start.bat)
+  Node.js thuần, ZERO DEPENDENCY. Không npm install, không build.
+  HTTP + WebSocket viết tay bằng module http/crypto có sẵn.
+  Sửa server.js phải restart; sửa index.html hoặc sprites.js chỉ cần F5.
+
+--- FILE ---
+  server.js    toàn bộ game logic, server thẩm quyền
+  index.html   client 1 file: Canvas 2D, input, HUD, cây kỹ năng
+  sprites.js   sprite pixel 16x16 vẽ bằng code, không có file ảnh
+  test-bot.js  bot WebSocket thô để test không cần mở nhiều máy
+  ranks.json   dữ liệu xếp hạng, tự sinh, đã .gitignore
+
+--- KIẾN TRÚC ---
+  Server thẩm quyền, vòng lặp 30Hz (TICK = 1000/30), broadcast full snapshot.
+  Client nội suy giữa 2 snapshot để mượt 60fps.
+  Arena CỐ ĐỊNH 960x560, một màn hình, KHÔNG có camera, không cuộn map.
+  MAXP = 3 người/phòng. Đúng 2 phòng toàn cục: 'coop' và 'duel'.
+  Không có tài khoản, không có mã phòng, không rate-limit.
+
+--- ĐÃ CHƠI ĐƯỢC ---
+  3 class x 2 nhánh, 48 node cây kỹ năng
+    Kiếm sĩ  HP130  Tank/Bruiser  | Vệ Binh (khiên, khiêu chiến) / Cuồng Chiến
+    Xạ thủ   HP92   DPS tầm xa    | Cung Thủ (chí mạng, đa mũi) / Nỏ Thủ
+    Nhà sư   HP100  Support       | Trị Liệu (hồi máu, khiên) / Cầu Nguyện
+    Gate cấp MINLV = {0:1, 1:2, 2:2, 3:3, 4:5, 5:8, 6:12}
+    Chọn nhánh ở tầng 3 KHOÁ VĨNH VIỄN nhánh còn lại. Co-op không respec được.
+
+  Phím: WASD/mũi tên chạy · chuột ngắm · giữ chuột trái hoặc Space đánh
+        E kỹ năng class · R kỹ năng nhánh (mở cấp 3) · T mở cây kỹ năng (co-op)
+        CHƯA CÓ phím lướt/dash.
+
+  Chế độ Co-op PvE: 1-3 người, quái = 3-6 x số người, quái đuổi người gần nhất,
+    Vệ Binh khiêu chiến kéo aggro. Giết quái -> EXP -> lên cấp -> +1 điểm kỹ năng.
+    Gục thì hồi sinh sau 6 giây.
+
+  Chế độ PvP FFA xếp hạng: 2-3 người, BO5 (WIN_ROUNDS=3), ván 60 giây.
+    State machine: loadout -> countdown -> playing -> roundover -> matchover
+    Loadout cấp sẵn 10 điểm kỹ năng, khoá build cả trận, có nút đặt lại điểm.
+    Hết giờ -> ai % máu cao nhất thắng ván.
+    5 loại orb rơi giữa map (giây 5, sau đó mỗi 10s, tối đa 2, mất sau 12s):
+      hồi 25% máu / khiên +30 / mana +25% / +25% sát thương 5s / +25% thủ 5s
+    ELO: MMR khởi điểm 1000, lưu ranks.json THEO TÊN NHÂN VẬT (không có tài khoản).
+    Bậc: <1000 Đồng · <1200 Bạc · <1400 Vàng · <1600 Bạch Kim · >=1600 Kim Cương
+
+  Nerf tank chỉ áp trong PvP: khiên rò rỉ 10/giây · dr chỉ 70% hiệu lực ·
+    keystone Bất Hoại Thành trần khiên 120 -> 70.
+
+  Sprite: 6 biến thể hero + 4 loại quái x 5 state (idle/move/attack/hit/die),
+    xác quái tự tan. Vòng màu dưới chân để phân biệt 2 người cùng class.
+
+--- 12 CUNG HIỆN TẠI (buff nền cố định, KHÔNG phải hệ blessing mới) ---
+  Tính từ NGÀY SINH (đã test 14 mốc ngày biên) — thiết kế mới BỎ cái này.
+  Bạch Dương đòn mở trận x2 · Kim Ngưu đứng yên -35% dmg nhận · Song Tử dùng
+  skill +30% tốc đánh · Cự Giải dưới 40% máu hồi x3 · Sư Tử +6% dmg mỗi địch
+  gần · Xử Nữ mỗi giây không dính đòn +3% chí mạng · Thiên Bình HP%~MP% +18%
+  dmg · Bọ Cạp +6% chí mạng, chí mạng gieo độc lây · Nhân Mã càng xa càng
+  mạnh · Ma Kết +1.5% dmg mỗi 10s sống · Bảo Bình 12% proc ngẫu nhiên ·
+  Song Ngư mana tối đa x1.8
+
+  LƯU Ý: 12 buff này là NGUYÊN LIỆU tốt cho hệ blessing mới — phần lớn đã có
+  code chạy được, chỉ cần chuyển từ "buff nền toàn cục" sang "gắn vào 1 slot".
+
+--- VẤN ĐỀ ĐÃ BIẾT ---
+  ! Nhà sư nhánh Trị Liệu THẮNG 6/6 trận bot FFA. Kiếm sĩ và Xạ thủ không
+    thắng ván nào. Nghi combo mk_A_root (Chữa Lành) + mk_A_key (Suối Nguồn:
+    hồi x2, máu thừa hoá khiên). Hướng xử lý: giảm hiệu lực hồi máu riêng ở PvP.
+    Chạy lại để so:  node test-bot.js duel 120000
+  ! Quái co-op gây ~26 dmg/giây khi 3 con bám sát — hạ Kiếm sĩ 144 HP trong
+    ~5.5 giây nếu đứng yên. Hơi gắt cho đợt đầu.
+  ! ranks.json lưu theo TÊN NHÂN VẬT — ai gõ trùng tên là chiếm MMR người khác.
+  ! Chỉ 2 phòng toàn cục, đưa lên internet thì người lạ lấp chỗ.
+  ! CHƯA CHƠI TAY NGƯỜI LẦN NÀO. Mọi số liệu trên đều từ bot.
+  ! Chưa có âm thanh. Chưa phải git repo.
+  ! Đòn thường tầm xa không phát event nào từ server (chỉ cận chiến bắn 'slash');
+    client tự suy ra bằng cách phát hiện đạn trong 24px quanh chủ nhân.
+
+--- HOST FREE (đã khảo sát, chưa làm) ---
+  Render    dễ nhất, có Singapore, ngủ sau ~15 phút, cold start ~50s,
+            ổ đĩa ephemeral nên ranks.json bay mỗi lần deploy
+  Fly.io    region sin, ping tốt nhất cho VN, có volume giữ ranks.json
+  Oracle    Always Free VM không ngủ, free vĩnh viễn, tốn công setup nhất
+  LOẠI THẲNG Vercel/Netlify/Cloudflare Pages: serverless không giữ được
+  WebSocket và vòng lặp 30Hz.
+  PORT đã đọc từ process.env.PORT, client đã tự chọn wss:// khi trang https.
+
+
+================================================================
+LỘ TRÌNH LÀM
+================================================================
+
+KHOẢNG CÁCH GIỮA THIẾT KẾ NÀY VÀ BẢN DEMO:
+
+  Thiết kế mới                 | Demo hiện tại
+  -----------------------------|------------------------------------------
+  32 người / 8 team            | MAXP=3, đúng 2 phòng toàn cục
+  3 map, chuyển map giữa trận  | 1 arena cố định 960x560, không camera
+  Map rộng phải cuộn           | 1 màn hình, không cuộn
+  Rương / merchant / artifact  | chưa có gì
+  Xu trong ván + token meta    | chưa có tiền tệ nào
+  Meta shop ở lobby            | chưa có tài khoản, rank lưu theo tên
+  60 blessing gắn 5 slot       | 12 buff nền cố định, không gắn slot
+  Chọn cung tự do              | cung tính từ ngày sinh
+  Slot Lướt (Shift)            | CHƯA CÓ dash
+  Vòng co map + mưa thiên thạch| chưa có
+  Team 4 người                 | chưa có khái niệm team
+  Hồi sinh map sau + quest debuff | hồi sinh tại chỗ sau 6 giây
+
+  GIỮ LẠI ĐƯỢC NGUYÊN VẸN: cây kỹ năng 48 node, 3 class x 2 nhánh, sprite,
+  netcode 30Hz, hệ sát thương dmgTo(), 12 hiệu ứng cung (đổi cách gắn).
+
+HAI THỨ CHẶN THẬT SỰ:
+  1. Server 30Hz gửi FULL snapshot cho 3 người sẽ KHÔNG gánh nổi 32 người.
+     Cần interest management (chỉ gửi thực thể trong tầm nhìn) + delta encoding.
+  2. Không có tài khoản thì meta progression KHÔNG THỂ tồn tại — ai gõ trùng
+     tên là lấy ví người khác.
+
+THỨ TỰ LÀM:
+  1. Prototype vòng lặp trên 1 MAP, 6 NGƯỜI — rương + blessing rơi + xu +
+     merchant cố định + timer co map thành vùng chết.
+     Chưa cần map 2, map 3. Nếu 10 phút này không vui thì 3 map cũng không cứu được.
+     (Việc này cần camera + map lớn hơn 1 màn hình trước tiên)
+  2. Hệ blessing: 36 cái Đánh thường/E/R trước, rồi 12 Bị động + codex
+  3. Tài khoản + mã phòng — BẮT BUỘC trước khi có token
+  4. Cơ chế dash + 12 blessing Lướt
+  5. Nhiều map
+  6. Cuối cùng mới tăng lên 32 người

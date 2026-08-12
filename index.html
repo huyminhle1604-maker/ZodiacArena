@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zodiac Arena</title>
+<style>
+  :root{
+    --bg:#0b0d16; --bg2:#141829; --line:#2a3050; --ink:#e8ecff; --dim:#8b93b8;
+    --p1:#4fc3f7; --p2:#ffb74d; --p3:#ba68c8; --gold:#ffd76a; --bad:#ff5c6c; --good:#6ee7a0;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI",system-ui,sans-serif;overflow:hidden;user-select:none}
+  #stage{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+  /* arena giữ đúng tỉ lệ 960x560; HUD neo vào nó chứ không neo vào cửa sổ */
+  #arena{position:relative;aspect-ratio:960/560;width:min(100%,calc(100vh * 960 / 560));max-height:100%}
+  canvas{image-rendering:pixelated;background:#0e1120;display:block;width:100%;height:100%;
+    box-shadow:0 0 0 2px var(--line),0 20px 60px #0008;border-radius:4px;cursor:crosshair}
+
+  /* ---------- HUD ---------- */
+  #hud{position:absolute;inset:0;pointer-events:none;font-size:13px}
+  #cards{position:absolute;left:12px;top:10px;display:flex;flex-direction:column;gap:6px}
+  .card{background:#0d1122dd;border:1px solid var(--line);border-left-width:4px;border-radius:6px;
+    padding:6px 9px;min-width:216px;backdrop-filter:blur(3px)}
+  .card.me{box-shadow:0 0 0 1px #ffffff22}
+  .card .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .card .nm{font-weight:700;letter-spacing:.2px}
+  .card .sub{color:var(--dim);font-size:11px}
+  .bar{height:8px;border-radius:4px;background:#00000066;margin-top:3px;overflow:hidden;position:relative}
+  .bar > i{display:block;height:100%;transition:width .12s linear}
+  .bar .sh{position:absolute;left:0;top:0;height:100%;background:#cfd8ff88}
+  .hpf{background:linear-gradient(90deg,#e0454f,#ff8a72)}
+  .mpf{background:linear-gradient(90deg,#3b6cff,#63d9ff)}
+  .xpf{background:linear-gradient(90deg,#8b6cff,#d9a6ff)}
+  .card.dead{opacity:.45;filter:grayscale(.7)}
+
+  #topmid{position:absolute;left:50%;top:10px;transform:translateX(-50%);text-align:center}
+  #wave{font-size:15px;font-weight:700;color:var(--gold);text-shadow:0 2px 6px #000;white-space:nowrap}
+  #score{display:flex;gap:14px;justify-content:center;margin-top:4px}
+  .sc{background:#0d1122dd;border:1px solid var(--line);border-radius:6px;padding:3px 10px;font-weight:700}
+  #timer{font-size:26px;font-weight:800;letter-spacing:1px;text-shadow:0 2px 8px #000}
+
+  #skills{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:flex;gap:10px}
+  .sk{width:60px;height:60px;border-radius:8px;background:#0d1122dd;border:1px solid var(--line);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;overflow:hidden}
+  .sk .key{position:absolute;top:2px;left:5px;font-size:10px;color:var(--dim)}
+  .sk .ic{font-size:22px;line-height:1}
+  .sk .nm2{font-size:9px;color:var(--dim);margin-top:2px;text-align:center;padding:0 2px;line-height:1.1}
+  .sk .cool{position:absolute;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:17px}
+  .sk.off{opacity:.3}
+  #hint{position:absolute;right:12px;bottom:12px;color:var(--dim);font-size:11px;text-align:right;line-height:1.6}
+  #toasts{position:absolute;left:50%;bottom:92px;transform:translateX(-50%);display:flex;flex-direction:column;
+    gap:4px;align-items:center}
+  .toast{background:#0d1122ee;border:1px solid var(--line);border-radius:14px;padding:4px 14px;font-size:12px}
+
+  /* ---------- Overlay chung ---------- */
+  .ov{position:absolute;inset:0;background:#070912e8;display:none;align-items:center;justify-content:center;
+    z-index:20;pointer-events:auto;backdrop-filter:blur(4px);overflow:auto;padding:20px}
+  .ov.on{display:flex}
+  .panel{background:linear-gradient(180deg,#151a30,#0f1324);border:1px solid var(--line);border-radius:12px;
+    padding:22px 26px;max-width:860px;width:100%;box-shadow:0 24px 70px #000a}
+  h1{margin:0 0 4px;font-size:26px;letter-spacing:2px}
+  h1 .z{color:var(--gold)}
+  .lead{color:var(--dim);font-size:13px;margin:0 0 16px}
+  label{display:block;font-size:12px;color:var(--dim);margin:12px 0 4px}
+  input,select{background:#0a0d1a;border:1px solid var(--line);color:var(--ink);border-radius:6px;
+    padding:9px 11px;font-size:14px;width:100%;font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:var(--p1)}
+  .row{display:flex;gap:10px}
+  .row > *{flex:1}
+  button{background:#1d2440;color:var(--ink);border:1px solid var(--line);border-radius:7px;
+    padding:10px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;transition:.12s}
+  button:hover:not(:disabled){background:#2a3358;border-color:#4a5590}
+  button:disabled{opacity:.35;cursor:not-allowed}
+  button.pri{background:linear-gradient(180deg,#3b56c9,#2a3d96);border-color:#5570e0}
+  button.pri:hover:not(:disabled){background:linear-gradient(180deg,#4a67e0,#3549ad)}
+  .acts{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+  .acts .left{margin-right:auto}
+
+  .picks{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px}
+  .pick{background:#0d1122;border:1px solid var(--line);border-radius:10px;padding:14px;cursor:pointer;
+    text-align:center;transition:.14s}
+  .pick:hover{border-color:#4a5590;transform:translateY(-2px)}
+  .pick.sel{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold),0 0 24px #ffd76a22}
+  .pick .big{font-size:38px}
+  .pick .t{font-weight:700;margin-top:6px}
+  .pick .r{font-size:11px;color:var(--gold);margin-top:2px}
+  .pick .d{font-size:11px;color:var(--dim);margin-top:6px;line-height:1.45}
+  .stats{display:flex;gap:8px;justify-content:center;margin-top:8px;font-size:10px;color:var(--dim);flex-wrap:wrap}
+  .stats span{background:#00000055;border-radius:4px;padding:2px 6px}
+
+  .zbox{background:#0d1122;border:1px solid var(--gold);border-radius:10px;padding:18px;text-align:center;margin-top:8px}
+  .zbox .g{font-size:52px}
+  .zbox .n{font-size:20px;font-weight:700;color:var(--gold);margin-top:4px}
+  .zbox .r{font-size:11px;color:var(--dim)}
+  .zbox .d{margin-top:10px;font-size:13px;line-height:1.6}
+
+  .zgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:12px}
+  .zc{background:#0d1122;border:1px solid var(--line);border-radius:6px;padding:6px 2px;text-align:center;font-size:10px;color:var(--dim)}
+  .zc b{display:block;font-size:18px;color:var(--ink)}
+
+  /* ---------- Cây kỹ năng ---------- */
+  #treeWrap{max-width:1000px}
+  .thead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  #ptsInfo{font-size:13px;color:var(--dim)}
+  #ptsInfo b{color:var(--gold);font-size:16px}
+  #treeBox{position:relative;width:760px;height:520px;margin:14px auto 0}
+  #treeSvg{position:absolute;inset:0;width:100%;height:100%}
+  .nd{position:absolute;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:10px;
+    background:#131830;border:2px solid #2c3358;display:flex;align-items:center;justify-content:center;
+    font-size:23px;cursor:pointer;transition:.13s}
+  .nd:hover{transform:scale(1.09);z-index:3}
+  .nd.own{background:linear-gradient(180deg,#2b6b46,#1b4a30);border-color:var(--good);box-shadow:0 0 16px #6ee7a044}
+  .nd.can{border-color:var(--gold);box-shadow:0 0 14px #ffd76a55;animation:pul 1.6s infinite}
+  .nd.lock{opacity:.34}
+  @keyframes pul{0%,100%{box-shadow:0 0 10px #ffd76a44}50%{box-shadow:0 0 22px #ffd76a99}}
+  .nd .cost{position:absolute;bottom:-7px;right:-7px;background:#0b0d16;border:1px solid var(--line);
+    border-radius:9px;font-size:10px;padding:0 5px;color:var(--gold)}
+  .brlab{position:absolute;font-size:11px;font-weight:700;letter-spacing:1px;color:var(--dim);transform:translateX(-50%)}
+  #tip{position:absolute;background:#080a14f2;border:1px solid var(--gold);border-radius:8px;padding:10px 12px;
+    width:250px;font-size:12px;pointer-events:none;z-index:9;display:none;line-height:1.5}
+  #tip .tn{font-weight:700;color:var(--gold);font-size:13px}
+  #tip .tt{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:1px;margin:2px 0 6px}
+  #tip .tw{color:var(--bad);margin-top:6px;font-size:11px}
+
+  /* ---------- Bảng PvP ---------- */
+  .rk{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}
+  .rk th{color:var(--dim);font-weight:600;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:11px}
+  .rk td{padding:7px 8px;border-bottom:1px solid #1b203a}
+  .up{color:var(--good)} .dn{color:var(--bad)}
+  .rdy{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .rdy .b{background:#0d1122;border:1px solid var(--line);border-radius:6px;padding:6px 12px;font-size:12px}
+  .rdy .b.ok{border-color:var(--good);color:var(--good)}
+  #bigmid{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);text-align:center;
+    font-size:74px;font-weight:900;letter-spacing:4px;text-shadow:0 6px 28px #000;pointer-events:none;display:none}
+  #bigsub{font-size:16px;font-weight:600;letter-spacing:2px;color:var(--dim)}
+
+  /* cửa sổ hẹp: thu gọn HUD để không đè lên nhau */
+  @media (max-width:900px){
+    #hud{font-size:11px}
+    .card{min-width:150px;padding:4px 7px}
+    #hint{display:none}
+    .sk{width:48px;height:48px}
+    #timer{font-size:20px}
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="arena">
+  <canvas id="cv" width="960" height="560"></canvas>
+
+  <div id="hud">
+    <div id="cards"></div>
+    <div id="topmid">
+      <div id="wave"></div>
+      <div id="timer"></div>
+      <div id="score"></div>
+    </div>
+    <div id="skills"></div>
+    <div id="toasts"></div>
+    <div id="bigmid"><div id="bigtxt"></div><div id="bigsub"></div></div>
+    <div id="hint">
+      <b>WASD</b> di chuyển · <b>Chuột</b> ngắm · <b>Giữ chuột / Space</b> đánh<br>
+      <b>E</b> kỹ năng class · <b>R</b> kỹ năng nhánh · <b>T</b> cây kỹ năng
+    </div>
+  </div>
+  </div>
+
+  <!-- Wizard tạo nhân vật -->
+  <div class="ov on" id="wiz"><div class="panel" id="wizPanel"></div></div>
+
+  <!-- Chọn chế độ -->
+  <div class="ov" id="modeOv"><div class="panel" id="modePanel"></div></div>
+
+  <!-- Cây kỹ năng -->
+  <div class="ov" id="treeOv"><div class="panel" id="treeWrap">
+    <div class="thead">
+      <div><h1 style="font-size:20px;letter-spacing:1px" id="treeTitle">Cây kỹ năng</h1>
+        <p class="lead" style="margin:2px 0 0" id="treeSub"></p></div>
+      <div id="ptsInfo"></div>
+    </div>
+    <div id="treeBox"><svg id="treeSvg"></svg></div>
+    <div class="acts">
+      <button class="left" id="btnRespec" style="display:none">Đặt lại điểm</button>
+      <button id="btnTreeClose">Đóng (T)</button>
+      <button class="pri" id="btnReady" style="display:none">Sẵn sàng</button>
+    </div>
+    <div id="tip"></div>
+  </div></div>
+
+  <!-- Overlay PvP -->
+  <div class="ov" id="duelOv"><div class="panel" id="duelPanel"></div></div>
+</div>
+
+<script src="sprites-legacy.js"></script>
+<script>
+/* ==================================================================
+   ZODIAC ARENA — client. Chỉ gửi input + vẽ lại snapshot của server.
+   ================================================================== */
+
+/* ------------------------- DỮ LIỆU HIỂN THỊ ------------------------- */
+const DATA = {
+  sw:{ nm:'Kiếm sĩ', ic:'⚔', role:'Tank / Bruiser', col:'#ff8a72',
+    d:'Cận chiến, máu dày nhất. Giữ tuyến cho đội, kéo aggro của quái.',
+    st:['HP 130','ATK 11','Tầm 46','Tốc 2.6'],
+    A:{nm:'Vệ Binh',d:'Khiên, khiêu chiến, chống chịu — trụ cột của đội.'},
+    B:{nm:'Cuồng Chiến',d:'Đổi giáp lấy sát thương, hút máu, càng nguy càng mạnh.'},
+    trunk:[
+      {s:'root',nm:'Rèn Thể',ic:'⚒',ty:'Bị động',d:'+14 HP tối đa, +1 sát thương.'},
+      {s:'e',nm:'Chém Xoay',ic:'🌀',ty:'Kỹ năng E',d:'Chém vòng quanh mình bán kính 78, gây 160% sát thương và đẩy lùi.'},
+      {s:'p0',nm:'Da Sắt',ic:'🛡',ty:'Bị động',d:'+8% giảm sát thương nhận.'},
+      {s:'p1',nm:'Bền Bỉ',ic:'❤',ty:'Bị động',d:'+0.7 hồi máu mỗi giây.'}],
+    An:[
+      {s:'A_root',nm:'Vệ Binh',ic:'🛡',ty:'Mở nhánh · R',d:'Mở R — <b>Khiên Thánh</b>: +40 khiên, khiêu chiến địch quanh 200. Thêm +22 HP, +4% giảm sát thương.'},
+      {s:'A_4a',nm:'Giáp Nặng',ic:'🧱',ty:'Bị động',d:'+10% giảm sát thương, −0.15 tốc chạy.'},
+      {s:'A_4b',nm:'Khiêu Chiến',ic:'📢',ty:'Nâng cấp R',d:'Bán kính khiêu chiến 200 → 260, khiên nhận thêm +15.'},
+      {s:'A_5a',nm:'Phản Đòn',ic:'⚡',ty:'Bị động',d:'Phản lại 25% sát thương cận chiến mà bạn nhận.'},
+      {s:'A_5b',nm:'Hộ Vệ',ic:'🤝',ty:'Bị động',d:'Gánh 25% sát thương của đồng đội trong 220 (co-op).'},
+      {s:'A_key',nm:'Bất Hoại Thành',ic:'🏰',ty:'Keystone',d:'Tự hồi khiên tới 120 (PvP: 70). Đồng đội quanh 120 cũng được hồi khiên.'}],
+    Bn:[
+      {s:'B_root',nm:'Cuồng Chiến',ic:'🔥',ty:'Mở nhánh · R',d:'Mở R — <b>Cuồng Nộ</b>: 6 giây +25% sát thương và tốc đánh. Thêm +6 sát thương, +0.1 tốc chạy.'},
+      {s:'B_4a',nm:'Khát Máu',ic:'🩸',ty:'Bị động',d:'+8% hút máu.'},
+      {s:'B_4b',nm:'Chém Mạnh',ic:'🪓',ty:'Bị động',d:'+20% sát thương nhưng đánh chậm hơn 15%.'},
+      {s:'B_5a',nm:'Máu Điên',ic:'💢',ty:'Bị động',d:'Khi dưới 50% HP: +25% sát thương.'},
+      {s:'B_5b',nm:'Xoáy Lốc',ic:'🌪',ty:'Nâng cấp E',d:'Chém Xoay đánh <b>2 lần</b>.'},
+      {s:'B_key',nm:'Tử Chiến',ic:'☠',ty:'Keystone',d:'Mỗi ván 1 lần: sống sót ở 1 HP, nhận 20 khiên và +50% sát thương trong 4 giây.'}]},
+
+  ar:{ nm:'Xạ thủ', ic:'🏹', role:'DPS tầm xa', col:'#6ee7a0',
+    d:'Máu mỏng nhất nhưng sát thương cao và tầm xa. Giữ khoảng cách là sống.',
+    st:['HP 92','ATK 9','Tầm 330','Tốc 3.1'],
+    A:{nm:'Cung Thủ',d:'Chí mạng, tầm xa, đa mũi tên — DPS ổn định.'},
+    B:{nm:'Nỏ Thủ',d:'Đạn nặng, xuyên giáp, burst dồn sát thương.'},
+    trunk:[
+      {s:'root',nm:'Nhắm Bắn',ic:'🎯',ty:'Bị động',d:'+1 sát thương, +5% chí mạng.'},
+      {s:'e',nm:'Mũi Xuyên',ic:'🏹',ty:'Kỹ năng E',d:'Bắn mũi tên xuyên qua 3 mục tiêu, gây 220% sát thương.'},
+      {s:'p0',nm:'Chân Nhanh',ic:'👟',ty:'Bị động',d:'+0.35 tốc chạy.'},
+      {s:'p1',nm:'Tay Nhanh',ic:'⚡',ty:'Bị động',d:'Đánh nhanh hơn 12%.'}],
+    An:[
+      {s:'A_root',nm:'Cung Thủ',ic:'🏹',ty:'Mở nhánh · R',d:'Mở R — <b>Mưa Tên</b>: dội tên xuống vùng 92 trong 2.2 giây. Thêm +5% chí mạng, +5% tầm.'},
+      {s:'A_4a',nm:'Trúng Đích',ic:'🎯',ty:'Bị động',d:'+12% tỉ lệ chí mạng.'},
+      {s:'A_4b',nm:'Bắn Xa',ic:'📏',ty:'Bị động',d:'+25% tầm bắn; càng xa mục tiêu càng mạnh (tới +20%).'},
+      {s:'A_5a',nm:'Chí Mạng',ic:'💥',ty:'Bị động',d:'Sát thương chí mạng 180% → <b>225%</b>.'},
+      {s:'A_5b',nm:'Đa Tiễn',ic:'🔱',ty:'Bị động',d:'Đòn thường bắn <b>3 mũi</b> hình quạt (mỗi mũi 60% sát thương).'},
+      {s:'A_key',nm:'Thợ Săn',ic:'🐺',ty:'Keystone',d:'+20% sát thương lên mục tiêu trên 70% máu. Mỗi lần chí mạng giảm 1 giây hồi chiêu R.'}],
+    Bn:[
+      {s:'B_root',nm:'Nỏ Thủ',ic:'🎪',ty:'Mở nhánh · R',d:'Mở R — <b>Nỏ Liên Thanh</b>: bắn 6 phát liên tiếp. Thêm +7 sát thương nhưng đánh chậm hơn 18%.'},
+      {s:'B_4a',nm:'Bu-lông Nặng',ic:'🔩',ty:'Bị động',d:'+25% sát thương, đạn bay chậm hơn.'},
+      {s:'B_4b',nm:'Xuyên Giáp',ic:'🗡',ty:'Bị động',d:'Bỏ qua 50% giáp mục tiêu, gây Yếu Giáp +15% trong 3 giây.'},
+      {s:'B_5a',nm:'Nạp Nhanh',ic:'⏱',ty:'Bị động',d:'Hồi chiêu R giảm 35%.'},
+      {s:'B_5b',nm:'Bẫy Nổ',ic:'💣',ty:'Nâng cấp E',d:'Mũi Xuyên phát nổ vùng 70 khi kết thúc đường bay.'},
+      {s:'B_key',nm:'Phát Bắn Tử Thần',ic:'☄',ty:'Keystone',d:'Cứ mỗi <b>5 phát</b>, phát đó gây <b>×3</b> sát thương.'}]},
+
+  mk:{ nm:'Nhà sư', ic:'🔮', role:'Support / Healer', col:'#63d9ff',
+    d:'Gậy phép tầm trung, mana lớn. Giữ đội sống hoặc bào mòn đối thủ.',
+    st:['HP 100','ATK 8','Tầm 260','Mana 115'],
+    A:{nm:'Trị Liệu',d:'Hồi máu, khiên, hào quang — giữ cả đội đứng vững.'},
+    B:{nm:'Cầu Nguyện',d:'Nguyền rủa, làm yếu, hút máu — bào mòn kẻ địch.'},
+    trunk:[
+      {s:'root',nm:'Thiền',ic:'🧘',ty:'Bị động',d:'+18 mana tối đa, +0.5 hồi mana mỗi giây.'},
+      {s:'e',nm:'Sóng Âm',ic:'🌊',ty:'Kỹ năng E',d:'Phóng sóng hình nón xa 190, gây 140% sát thương và đẩy lùi mạnh.'},
+      {s:'p0',nm:'Tâm An',ic:'💧',ty:'Bị động',d:'+1.0 hồi mana mỗi giây.'},
+      {s:'p1',nm:'Nội Lực',ic:'✨',ty:'Bị động',d:'+10% sát thương.'}],
+    An:[
+      {s:'A_root',nm:'Trị Liệu',ic:'💚',ty:'Mở nhánh · R',d:'Mở R — <b>Chữa Lành</b>: hồi 30 máu cho mình và đồng đội quanh 220. Thêm +12 HP.'},
+      {s:'A_4a',nm:'Hồi Sinh Nhanh',ic:'⏩',ty:'Bị động',d:'Lượng hồi máu +20%; đồng đội gục ngã hồi sinh nhanh hơn.'},
+      {s:'A_4b',nm:'Lá Chắn Sinh Mệnh',ic:'🔰',ty:'Bị động',d:'Mỗi lần hồi máu tặng thêm 20 khiên.'},
+      {s:'A_5a',nm:'Hào Quang',ic:'🌟',ty:'Bị động',d:'Đồng đội trong 130 hồi 0.8 máu mỗi giây.'},
+      {s:'A_5b',nm:'Phục Sinh',ic:'🕊',ty:'Bị động',d:'Đồng đội gục ngã hồi sinh nhanh hơn nhiều (×2.2).'},
+      {s:'A_key',nm:'Suối Nguồn',ic:'⛲',ty:'Keystone',d:'Chữa Lành hồi <b>×2</b>, xoá độc; phần máu thừa chuyển thành khiên.'}],
+    Bn:[
+      {s:'B_root',nm:'Cầu Nguyện',ic:'🙏',ty:'Mở nhánh · R',d:'Mở R — <b>Lời Nguyền</b>: vùng 110 kéo dài 5 giây, làm chậm 45% và gây Yếu Giáp 20%. Thêm +2 sát thương.'},
+      {s:'B_4a',nm:'Suy Nhược',ic:'🌑',ty:'Bị động toàn cục',d:'Kẻ địch gây ít hơn 12% sát thương (áp dụng toàn trận).'},
+      {s:'B_4b',nm:'Trừng Phạt',ic:'⚖',ty:'Bị động',d:'Đòn đánh đánh dấu mục tiêu; bạn gây +15% sát thương lên mục tiêu bị đánh dấu.'},
+      {s:'B_5a',nm:'Ánh Sáng Thiêu',ic:'🔥',ty:'Nâng cấp E',d:'Sóng Âm gây bỏng (sát thương theo thời gian) trong 4 giây.'},
+      {s:'B_5b',nm:'Đoạt Hồn',ic:'🩸',ty:'Bị động',d:'+12% hút máu và hồi mana mỗi khi gây sát thương.'},
+      {s:'B_key',nm:'Phán Xét',ic:'⚡',ty:'Keystone',d:'+35% sát thương lên mục tiêu đang bị làm chậm hoặc Yếu Giáp.'}]}
+};
+
+const ZOD = {
+  ari:{nm:'Bạch Dương',g:'♈',r:'21/3 – 19/4',d:'Đòn mở trận gây <b>×2 sát thương</b> (nạp lại sau 5 giây không đánh).'},
+  tau:{nm:'Kim Ngưu', g:'♉',r:'20/4 – 20/5',d:'Đứng yên 0.6 giây: <b>−35% sát thương nhận</b>. Thêm +8 HP.'},
+  gem:{nm:'Song Tử',  g:'♊',r:'21/5 – 20/6',d:'Mỗi lần dùng kỹ năng: <b>+30% tốc đánh</b> trong 3 giây.'},
+  can:{nm:'Cự Giải',  g:'♋',r:'21/6 – 22/7',d:'Khi dưới 40% máu: <b>hồi máu ×3</b>.'},
+  leo:{nm:'Sư Tử',    g:'♌',r:'23/7 – 22/8',d:'<b>+6% sát thương</b> mỗi kẻ địch trong 260 (tối đa 5).'},
+  vir:{nm:'Xử Nữ',    g:'♍',r:'23/8 – 22/9',d:'Mỗi giây không dính đòn: <b>+3% chí mạng</b> (tối đa +30%), reset khi trúng đòn.'},
+  lib:{nm:'Thiên Bình',g:'♎',r:'23/9 – 22/10',d:'Khi HP% ≈ MP% (lệch dưới 15%): <b>+18% sát thương</b>.'},
+  sco:{nm:'Bọ Cạp',   g:'♏',r:'23/10 – 21/11',d:'+6% chí mạng. Chí mạng <b>gieo độc</b>, độc lây sang quái gần.'},
+  sag:{nm:'Nhân Mã',  g:'♐',r:'22/11 – 21/12',d:'Càng xa mục tiêu càng mạnh — tới <b>+30%</b> ở 300px.'},
+  cap:{nm:'Ma Kết',   g:'♑',r:'22/12 – 19/1',d:'<b>+1.5% sát thương</b> mỗi 10 giây sống sót (tối đa +30%).'},
+  aqu:{nm:'Bảo Bình', g:'♒',r:'20/1 – 18/2',d:'12% mỗi đòn kích hoạt ngẫu nhiên: đòn kép / hồi máu / giảm hồi chiêu.'},
+  pis:{nm:'Song Ngư', g:'♓',r:'19/2 – 20/3',d:'Mana tối đa <b>×1.8</b> và +0.6 hồi mana.'}
+};
+const ZORDER = ['ari','tau','gem','can','leo','vir','lib','sco','sag','cap','aqu','pis'];
+
+function signOf(m,d){
+  const B=[[3,21,'ari'],[4,20,'tau'],[5,21,'gem'],[6,21,'can'],[7,23,'leo'],[8,23,'vir'],
+           [9,23,'lib'],[10,23,'sco'],[11,22,'sag'],[12,22,'cap'],[1,20,'aqu'],[2,19,'pis']];
+  for(const [mm,dd,k] of B){ if(m===mm) return d>=dd ? k : prevSign(k); }
+  return 'ari';
+}
+function prevSign(k){ const i=ZORDER.indexOf(k); return ZORDER[(i+11)%12]; }
+
+const ORBFX = {
+  heal:  {c:'#6ee7a0',ch:'+',nm:'Hồi máu 25%'},
+  shield:{c:'#cfd8ff',ch:'◆',nm:'Khiên +30'},
+  mana:  {c:'#63d9ff',ch:'✦',nm:'Mana +25%'},
+  dmg:   {c:'#ff8a72',ch:'▲',nm:'+25% sát thương (5s)'},
+  def:   {c:'#ffd76a',ch:'■',nm:'+25% phòng thủ (5s)'}
+};
+
+/* Layout cây kỹ năng — phải khớp META của server. */
+const MINLV = {0:1,1:2,2:2,3:3,4:5,5:8,6:12};
+function buildMeta(cls){
+  const M={}, k=s=>cls+'_'+s;
+  M[k('root')]={t:0,cost:0,req:[],mode:'all',br:null};
+  M[k('e')]   ={t:1,cost:1,req:[k('root')],mode:'all',br:null};
+  M[k('p0')]  ={t:2,cost:1,req:[k('e')],mode:'all',br:null};
+  M[k('p1')]  ={t:2,cost:1,req:[k('e')],mode:'all',br:null};
+  for(const br of ['A','B']){
+    const b=s=>k(br+'_'+s);
+    M[b('root')]={t:3,cost:1,req:[k('p0'),k('p1')],mode:'any',br};
+    M[b('4a')] ={t:4,cost:1,req:[b('root')],mode:'all',br};
+    M[b('4b')] ={t:4,cost:1,req:[b('root')],mode:'all',br};
+    M[b('5a')] ={t:5,cost:1,req:[b('4a')],mode:'all',br};
+    M[b('5b')] ={t:5,cost:1,req:[b('4b')],mode:'all',br};
+    M[b('key')]={t:6,cost:2,req:[b('5a'),b('5b')],mode:'any',br};
+  }
+  return M;
+}
+const POS = {
+  root:[380,42], e:[380,120], p0:[300,196], p1:[460,196],
+  A_root:[170,272], A_4a:[100,348], A_4b:[240,348], A_5a:[100,420], A_5b:[240,420], A_key:[170,486],
+  B_root:[590,272], B_4a:[520,348], B_4b:[660,348], B_5a:[520,420], B_5b:[660,420], B_key:[590,486]
+};
+function treeNodes(cls){
+  const D=DATA[cls], out=[];
+  const push=(arr)=>arr.forEach(n=>out.push({id:cls+'_'+n.s, slot:n.s, ...n}));
+  push(D.trunk); push(D.An); push(D.Bn);
+  return out;
+}
+
+/* ------------------------- TRẠNG THÁI CLIENT ------------------------- */
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const SLOTCOL=['#4fc3f7','#ffb74d','#ba68c8'];
+const ME={nm:'',cls:'sw',z:'ari',dob:null,slot:-1,mode:'coop',mmr:1000,tier:'Đồng'};
+let ws=null, cur=null, prev=null, curT=0, prevT=0, connected=false;
+let META=null, CFG=null;
+const keys={};
+let mouseX=480, mouseY=280, firing=false;
+let fx=[], nums=[], parts=[], treeOpen=false, lastPhase='';
+
+/* ------------------------- TRẠNG THÁI ANIMATION -------------------------
+   Server không gửi state animation nên client tự suy ra từ snapshot.
+   Khoá: 'p'+slot cho người chơi, 'e'+id cho quái.
+   Ưu tiên khi trùng: die > hit > attack > move > idle. */
+const ANIM=new Map(), CORPSES=[];
+const APRI={idle:0,move:1,attack:2,hit:3,die:4};
+const CLSKEY={sw:'knight',ar:'archer',mk:'monk'};
+const heroKey=p=>CLSKEY[p.cls]+'_'+(p.br||'A');   // chưa rẽ nhánh thì dùng _A
+
+function animOf(id){
+  let a=ANIM.get(id);
+  if(!a){ a={st:'idle',t0:performance.now(),hp:null,x:0,y:0,r:12,ty:null,facing:1}; ANIM.set(id,a); }
+  return a;
+}
+/* attack | hit | die — luôn đặt lại mốc thời gian khi được phép ghi đè */
+function triggerAnim(id,st,now){
+  const a=animOf(id);
+  if(a.st==='die') return;
+  const timed=(a.st==='attack'||a.st==='hit');
+  if(st!=='die'&&timed&&now-a.t0<ZASprites.DUR[a.st]&&APRI[st]<=APRI[a.st]) return;
+  a.st=st; a.t0=now;
+}
+/* move | idle — không được cắt ngang attack/hit đang chạy */
+function baseAnim(id,moving,now){
+  const a=animOf(id);
+  if(a.st==='die') return;
+  if((a.st==='attack'||a.st==='hit')&&now-a.t0<ZASprites.DUR[a.st]) return;
+  const st=moving?'move':'idle';
+  if(a.st!==st){ a.st=st; a.t0=now; }
+}
+
+function updateAnims(now){
+  if(!cur||!window.ZASprites) return;
+
+  for(const p of cur.P){
+    const id='p'+p.s, a=animOf(id);
+    a.facing=Math.cos(p.a)<0?-1:1;
+    if(!p.al||p.el){ triggerAnim(id,'die',now); a.hp=p.hp; continue; }
+    if(a.st==='die'){ a.st='idle'; a.t0=now; }                 // hồi sinh
+    const pp=prev&&prev.P.find(q=>q.s===p.s);
+    baseAnim(id,pp?Math.hypot(p.x-pp.x,p.y-pp.y)>0.3:false,now);
+    if(a.hp!=null&&p.hp<a.hp) triggerAnim(id,'hit',now);
+    a.hp=p.hp;
+    /* Đánh thường: cận chiến có event 'slash'; tầm xa không có event nào,
+       nên suy ra từ viên đạn vừa rời tay (chỉ nằm sát chủ nhân 1-2 tick). */
+    if(cur.R.some(r=>r.o===p.s&&Math.hypot(r.x-p.x,r.y-p.y)<24)) triggerAnim(id,'attack',now);
+  }
+
+  const alive=new Set();
+  for(const e of cur.E){
+    const id='e'+e.i, a=animOf(id);
+    alive.add(id);
+    const pe=prev&&prev.E.find(q=>q.i===e.i);
+    if(pe){
+      const dx=e.x-pe.x, dy=e.y-pe.y;
+      if(Math.abs(dx)>0.3) a.facing=dx<0?-1:1;
+      baseAnim(id,Math.hypot(dx,dy)>0.3,now);
+    }
+    if(a.hp!=null&&e.hp<a.hp) triggerAnim(id,'hit',now);
+    a.hp=e.hp; a.x=e.x; a.y=e.y; a.r=e.r; a.ty=e.ty;
+  }
+  /* Quái biến khỏi snapshot ngay khi chết ⇒ giữ lại thành "xác đang tan". */
+  for(const [id,a] of ANIM){
+    if(id[0]!=='e'||alive.has(id)) continue;
+    if(a.ty) CORPSES.push({key:a.ty,x:a.x,y:a.y,r:a.r,facing:a.facing,t0:now});
+    ANIM.delete(id);
+  }
+  for(let i=CORPSES.length-1;i>=0;i--)
+    if(now-CORPSES[i].t0>=ZASprites.DUR.die) CORPSES.splice(i,1);
+}
+
+/* ------------------------- WIZARD ------------------------- */
+let step=0;
+function rw(){
+  const P=document.getElementById('wizPanel');
+  if(step===0){
+    P.innerHTML=`
+      <h1>ZODIAC <span class="z">ARENA</span></h1>
+      <p class="lead">Ngày sinh quyết định cung hoàng đạo — cung quyết định buff nền của bạn. Class thì bạn tự chọn.</p>
+      <label>Tên nhân vật (dùng để lưu xếp hạng)</label>
+      <input id="wNm" maxlength="12" placeholder="Ví dụ: Hiệp Sĩ Bóng Đêm" value="${ME.nm}">
+      <div class="acts"><button class="pri" id="w0">Tiếp tục →</button></div>`;
+    const go=()=>{ const v=document.getElementById('wNm').value.trim(); if(!v) return;
+      ME.nm=v.slice(0,12); step=1; rw(); };
+    document.getElementById('w0').onclick=go;
+    const inp=document.getElementById('wNm');
+    inp.focus(); inp.onkeydown=e=>{ if(e.key==='Enter') go(); };
+  }
+  else if(step===1){
+    P.innerHTML=`
+      <h1 style="font-size:22px">Chọn class</h1>
+      <p class="lead">Trinity: Kiếm sĩ giữ tuyến · Xạ thủ dồn sát thương · Nhà sư giữ đội sống.</p>
+      <div class="picks">${Object.keys(DATA).map(k=>{const c=DATA[k];return `
+        <div class="pick ${ME.cls===k?'sel':''}" data-c="${k}">
+          <div class="big">${c.ic}</div><div class="t">${c.nm}</div>
+          <div class="r">${c.role}</div><div class="d">${c.d}</div>
+          <div class="stats">${c.st.map(s=>`<span>${s}</span>`).join('')}</div>
+        </div>`}).join('')}</div>
+      <div class="acts"><button class="left" id="wb">← Quay lại</button><button class="pri" id="w1">Tiếp tục →</button></div>`;
+    P.querySelectorAll('.pick').forEach(el=>el.onclick=()=>{
+      ME.cls=el.dataset.c;
+      P.querySelectorAll('.pick').forEach(x=>x.classList.toggle('sel',x===el));
+    });
+    document.getElementById('wb').onclick=()=>{step=0;rw();};
+    document.getElementById('w1').onclick=()=>{step=2;rw();};
+  }
+  else if(step===2){
+    const c=DATA[ME.cls];
+    P.innerHTML=`
+      <h1 style="font-size:22px">${c.ic} ${c.nm}</h1>
+      <p class="lead">Tới cấp 3 bạn sẽ chọn <b>một</b> trong hai nhánh dưới đây — chọn rồi thì không đổi được.</p>
+      <div class="picks" style="grid-template-columns:1fr 1fr">
+        <div class="pick"><div class="big">🅰</div><div class="t">${c.A.nm}</div><div class="d">${c.A.d}</div></div>
+        <div class="pick"><div class="big">🅱</div><div class="t">${c.B.nm}</div><div class="d">${c.B.d}</div></div>
+      </div>
+      <div class="acts"><button class="left" id="wb">← Đổi class</button><button class="pri" id="w2">Chốt ${c.nm} →</button></div>`;
+    document.getElementById('wb').onclick=()=>{step=1;rw();};
+    document.getElementById('w2').onclick=()=>{step=3;rw();};
+  }
+  else if(step===3){
+    P.innerHTML=`
+      <h1 style="font-size:22px">Ngày sinh của bạn</h1>
+      <p class="lead">Ngày sinh chỉ dùng để tính cung hoàng đạo — không lưu ở đâu cả.</p>
+      <div class="row">
+        <div><label>Ngày</label><input id="wD" type="number" min="1" max="31" placeholder="16"></div>
+        <div><label>Tháng</label><input id="wM" type="number" min="1" max="12" placeholder="4"></div>
+        <div><label>Năm (không bắt buộc)</label><input id="wY" type="number" placeholder="2000"></div>
+      </div>
+      <div class="zgrid">${ZORDER.map(k=>`<div class="zc"><b>${ZOD[k].g}</b>${ZOD[k].nm}<br>${ZOD[k].r}</div>`).join('')}</div>
+      <div class="acts"><button class="left" id="wb">← Quay lại</button><button class="pri" id="w3">Xem cung của tôi →</button></div>`;
+    const go=()=>{
+      const d=+document.getElementById('wD').value, m=+document.getElementById('wM').value;
+      if(!(d>=1&&d<=31&&m>=1&&m<=12)) return;
+      ME.dob={d,m}; ME.z=signOf(m,d); step=4; rw();
+    };
+    document.getElementById('wb').onclick=()=>{step=2;rw();};
+    document.getElementById('w3').onclick=go;
+    P.querySelectorAll('input').forEach(i=>i.onkeydown=e=>{if(e.key==='Enter')go();});
+    document.getElementById('wD').focus();
+  }
+  else if(step===4){
+    const z=ZOD[ME.z], c=DATA[ME.cls];
+    P.innerHTML=`
+      <h1 style="font-size:22px">Lời chúc phúc</h1>
+      <p class="lead">Sinh ngày ${ME.dob.d}/${ME.dob.m} — các vì sao đã chọn cho bạn:</p>
+      <div class="zbox"><div class="g">${z.g}</div><div class="n">${z.nm}</div>
+        <div class="r">${z.r}</div><div class="d">${z.d}</div></div>
+      <p class="lead" style="margin-top:14px">Nhân vật: <b style="color:${c.col}">${c.ic} ${ME.nm} — ${c.nm}</b></p>
+      <div class="acts"><button class="left" id="wb">← Đổi ngày sinh</button><button class="pri" id="w4">Vào đấu trường →</button></div>`;
+    document.getElementById('wb').onclick=()=>{step=3;rw();};
+    document.getElementById('w4').onclick=()=>{ document.getElementById('wiz').classList.remove('on'); openMode(); };
+  }
+}
+
+/* ------------------------- CHỌN CHẾ ĐỘ ------------------------- */
+function openMode(lb){
+  const ov=document.getElementById('modeOv'), P=document.getElementById('modePanel');
+  const z=ZOD[ME.z], c=DATA[ME.cls];
+  P.innerHTML=`
+    <h1 style="font-size:22px">Chọn chế độ</h1>
+    <p class="lead">${c.ic} <b>${ME.nm}</b> · ${c.nm} · ${z.g} ${z.nm}</p>
+    <div class="picks" style="grid-template-columns:1fr 1fr">
+      <div class="pick" data-m="coop"><div class="big">🛡</div><div class="t">Co-op PvE</div>
+        <div class="r">1–3 người</div>
+        <div class="d">Cùng chống các đợt quái. Lên cấp trong trận, mỗi cấp +1 điểm kỹ năng (nhấn <b>T</b> để rải).</div></div>
+      <div class="pick" data-m="duel"><div class="big">⚔</div><div class="t">PvP FFA xếp hạng</div>
+        <div class="r">2–3 người · BO5</div>
+        <div class="d">Hỗn chiến tự do. Cấp sẵn 10 điểm kỹ năng ở màn chuẩn bị, khoá build cả trận. Thắng/thua tính ELO.</div></div>
+    </div>
+    <div class="lbBox"></div>
+    <div class="acts"><button class="left" id="mb">← Sửa nhân vật</button></div>`;
+  P.querySelectorAll('.pick').forEach(el=>el.onclick=()=>{ ME.mode=el.dataset.m; ov.classList.remove('on'); connect(); });
+  document.getElementById('mb').onclick=()=>{ ov.classList.remove('on'); step=0; document.getElementById('wiz').classList.add('on'); rw(); };
+  renderLB();
+  ov.classList.add('on');
+}
+/* Bảng xếp hạng: giữ bản mới nhất và vẽ vào MỌI .lbBox đang có (màn chế độ + màn kết trận). */
+let LB=[];
+function renderLB(list){
+  if(list) LB=list;
+  const html=LB.length
+    ? `<h1 style="font-size:15px;letter-spacing:1px;margin-top:20px">🏆 Bảng xếp hạng</h1>
+       <table class="rk"><tr><th>#</th><th>Tên</th><th>Bậc</th><th>MMR</th><th>T–B</th></tr>
+       ${LB.slice(0,8).map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.nm)}</td><td>${r.tier}</td>
+         <td><b>${r.mmr}</b></td><td>${r.w}–${r.l}</td></tr>`).join('')}</table>`
+    : '';
+  document.querySelectorAll('.lbBox').forEach(b=>b.innerHTML=html);
+}
+const esc=s=>String(s).replace(/[<>&]/g,m=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+
+/* ------------------------- MẠNG ------------------------- */
+function connect(){
+  ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host);
+  ws.onopen=()=>{ connected=true; ws.send(JSON.stringify({t:'join',nm:ME.nm,cls:ME.cls,z:ME.z,mode:ME.mode})); };
+  ws.onmessage=e=>onMsg(JSON.parse(e.data));
+  ws.onclose=()=>{ connected=false; toast('Mất kết nối tới server'); };
+  ws.onerror=()=>toast('Lỗi kết nối');
+}
+function onMsg(m){
+  if(m.t==='welcome'){ if(m.lb) renderLB(m.lb); return; }
+  if(m.t==='full'){ toast('Phòng đã đầy (tối đa 3 người)'); openMode(); return; }
+  if(m.t==='joined'){
+    ME.slot=m.slot; CFG=m.cfg; META=buildMeta(ME.cls);
+    ME.mmr=m.mmr; ME.tier=m.tier;
+    toast('Vào phòng — bạn là P'+(m.slot+1));
+    return;
+  }
+  if(m.t==='roster'){ return; }
+  if(m.t==='lb'){ renderLB(m.list); return; }
+  if(m.t==='deny'){ toast('Chưa đủ điều kiện học kỹ năng này'); return; }
+  if(m.t==='state'){
+    prev=cur; prevT=curT; cur=m; curT=performance.now();
+    if(m.ev&&m.ev.length) m.ev.forEach(onEvent);
+    updateAnims(curT);
+    syncHud();
+    if(m.mode==='duel'&&m.duel) duelSync(m.duel);
+    if(treeOpen) renderTree();
+  }
+}
+function meP(){ return cur ? cur.P.find(p=>p.s===ME.slot) : null; }
+
+/* ------------------------- SỰ KIỆN → HIỆU ỨNG ------------------------- */
+function onEvent(e){
+  switch(e.k){
+    case 'hit': nums.push({x:e.x,y:e.y,v:e.d,t:0.9,c:e.c?'#ffd76a':'#ffffff',s:e.c?20:14,vy:-1.5}); shake(e.c?3:1); break;
+    case 'heal': if(e.d>0) nums.push({x:e.x,y:e.y,v:'+'+e.d,t:1,c:'#6ee7a0',s:15,vy:-1.2}); break;
+    case 'shield': nums.push({x:e.x,y:e.y-12,v:e.d,t:.7,c:'#cfd8ff',s:12,vy:-1}); break;
+    case 'ring': fx.push({k:'ring',x:e.x,y:e.y,r:e.r,t:.45,mt:.45}); break;
+    case 'cone': fx.push({k:'cone',x:e.x,y:e.y,a:e.a,r:e.r,t:.3,mt:.3}); break;
+    case 'slash': fx.push({k:'slash',x:e.x,y:e.y,a:e.a,r:e.r,t:.16,mt:.16,c:SLOTCOL[e.s]||'#fff'});
+      if(e.s>=0) triggerAnim('p'+e.s,'attack',performance.now()); break;
+    case 'cast': fx.push({k:'ring',x:e.x,y:e.y,r:34,t:.3,mt:.3});
+      if(e.s>=0) triggerAnim('p'+e.s,'attack',performance.now()); break;
+    case 'die': burst(e.x,e.y,'#7fdc7f',12); break;
+    case 'down': burst(e.x,e.y,'#ff5c6c',22); shake(8); break;
+    case 'level': burst(e.x||0,e.y||0,'#ffd76a',0); break;
+    case 'orb': burst(e.x,e.y,(ORBFX[e.ty]||{c:'#fff'}).c,16); break;
+    case 'toast': toast(e.m,e.s); break;
+    case 'wave': toast('⚔ Đợt '+e.n); break;
+  }
+}
+function burst(x,y,c,n){ for(let i=0;i<n;i++){ const a=Math.random()*6.283,s=1+Math.random()*3;
+  parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,t:.6,c}); } }
+let shakeT=0,shakeA=0;
+function shake(a){ shakeA=Math.max(shakeA,a); shakeT=.18; }
+function toast(msg,slot){
+  const box=document.getElementById('toasts');
+  const d=document.createElement('div'); d.className='toast';
+  d.innerHTML=(slot>=0&&slot<3?`<b style="color:${SLOTCOL[slot]}">●</b> `:'')+esc(msg).replace(/&lt;b&gt;/g,'<b>');
+  box.appendChild(d);
+  setTimeout(()=>{ d.style.opacity='0'; d.style.transition='opacity .4s'; setTimeout(()=>d.remove(),400); },2400);
+  while(box.children.length>4) box.firstChild.remove();
+}
+
+/* ------------------------- HUD ------------------------- */
+function syncHud(){
+  const box=document.getElementById('cards');
+  const list=cur.P.slice().sort((a,b)=>a.s-b.s);
+  while(box.children.length>list.length) box.lastChild.remove();
+  while(box.children.length<list.length){
+    const d=document.createElement('div'); d.className='card';
+    d.innerHTML=`<div class="top"><span class="nm"></span><span class="sub"></span></div>
+      <div class="bar"><i class="hpf"></i><i class="sh"></i></div>
+      <div class="bar"><i class="mpf"></i></div>
+      <div class="bar" style="height:4px"><i class="xpf"></i></div>`;
+    box.appendChild(d);
+  }
+  list.forEach((p,i)=>{
+    const el=box.children[i], col=SLOTCOL[p.s];
+    el.style.borderLeftColor=col;
+    el.classList.toggle('me',p.s===ME.slot);
+    el.classList.toggle('dead',!p.al||p.el);
+    const zz=ZOD[p.z]||{g:'?'}, cc=DATA[p.cls]||{ic:'?'};
+    const br=p.br?(DATA[p.cls][p.br].nm):'—';
+    el.querySelector('.nm').textContent=`${cc.ic} ${p.nm}`;
+    el.querySelector('.nm').style.color=col;
+    el.querySelector('.sub').textContent=`${zz.g} Lv.${p.lv} · ${br}`+
+      (p.el?' · BỊ LOẠI':(!p.al?` · hồi sinh ${p.dt}s`:''));
+    el.querySelector('.hpf').style.width=Math.max(0,p.hp/p.mhp*100)+'%';
+    el.querySelector('.sh').style.width=Math.min(100,p.sh/p.mhp*100)+'%';
+    el.querySelector('.mpf').style.width=(p.mp/p.mmp*100)+'%';
+    el.querySelector('.xpf').style.width=(p.xp/p.xn*100)+'%';
+  });
+
+  /* thanh kỹ năng của mình */
+  const me=meP(); const sk=document.getElementById('skills');
+  if(!me){ sk.innerHTML=''; return; }
+  const D=DATA[me.cls];
+  const eN=D.trunk.find(n=>n.s==='e');
+  const rN=me.br?D[me.br==='A'?'An':'Bn'][0]:null;
+  const cells=[
+    {key:'E',ic:eN.ic,nm:eN.nm,on:me.hasE,cd:me.cdE,mx:me.mxE},
+    {key:'R',ic:rN?rN.ic:'🔒',nm:rN?rN.nm:'Chưa mở nhánh',on:me.hasR,cd:me.cdR,mx:me.mxR||1}
+  ];
+  if(sk.children.length!==2){ sk.innerHTML=cells.map(()=>`<div class="sk"><span class="key"></span>
+    <span class="ic"></span><span class="nm2"></span><div class="cool" style="display:none"></div></div>`).join(''); }
+  cells.forEach((c,i)=>{
+    const el=sk.children[i];
+    el.classList.toggle('off',!c.on);
+    el.querySelector('.key').textContent=c.key;
+    el.querySelector('.ic').textContent=c.ic;
+    el.querySelector('.nm2').textContent=c.nm;
+    const cool=el.querySelector('.cool');
+    if(c.cd>0){ cool.style.display='flex'; cool.textContent=c.cd.toFixed(1); }
+    else cool.style.display='none';
+  });
+
+  /* giữa trên */
+  const wv=document.getElementById('wave'), tm=document.getElementById('timer'), scb=document.getElementById('score');
+  if(cur.mode==='coop'){
+    wv.textContent='Đợt '+cur.wave+' · Quái còn '+cur.E.length;
+    tm.textContent=''; scb.innerHTML='';
+    if(me.pts>0) wv.textContent+=`  ·  ${me.pts} điểm kỹ năng (T)`;
+  } else if(cur.duel){
+    const d=cur.duel;
+    wv.textContent=d.ph==='playing'?('Ván '+d.round+'  ·  Cần '+ (CFG?CFG.WIN_ROUNDS:3) +' ván thắng'):'';
+    tm.textContent=d.ph==='playing'?Math.ceil(d.t):'';
+    tm.style.color=(d.ph==='playing'&&d.t<10)?'var(--bad)':'var(--ink)';
+    scb.innerHTML=cur.P.slice().sort((a,b)=>a.s-b.s).map(p=>
+      `<div class="sc" style="color:${SLOTCOL[p.s]}">${esc(p.nm)} <span style="color:var(--gold)">${d.score[p.s]}</span></div>`).join('');
+  }
+}
+
+/* ------------------------- OVERLAY PvP ------------------------- */
+function duelSync(d){
+  const ov=document.getElementById('duelOv'), P=document.getElementById('duelPanel');
+  const big=document.getElementById('bigmid'), bt=document.getElementById('bigtxt'), bs=document.getElementById('bigsub');
+  big.style.display='none';
+  if(d.ph!=='matchover') lastPhase=d.ph;
+
+  if(d.ph==='loadout'){
+    ov.classList.remove('on');
+    if(!treeOpen) openTree(true);
+    else renderTree();
+    return;
+  }
+  if(treeOpen&&d.ph!=='loadout') closeTree();
+
+  if(d.ph==='countdown'){
+    ov.classList.remove('on');
+    big.style.display='block'; bt.style.fontSize='74px'; bt.style.color='var(--ink)';
+    bt.textContent=Math.max(1,Math.ceil(d.t)); bs.textContent='CHUẨN BỊ';
+    return;
+  }
+  if(d.ph==='playing'){ ov.classList.remove('on'); return; }
+  if(d.ph==='roundover'){
+    ov.classList.remove('on');
+    const w=cur.P.find(p=>p.s===d.winner);
+    big.style.display='block';
+    bt.style.fontSize='46px';
+    bt.textContent=w?w.nm:'HOÀ';
+    bt.style.color=w?SLOTCOL[w.s]:'#fff';
+    bs.textContent='THẮNG VÁN '+d.round+'  ·  '+d.score.slice(0,cur.P.length).join(' – ');
+    return;
+  }
+  if(d.ph==='matchover'){
+    ov.classList.add('on');
+    /* chỉ dựng lại panel khi thực sự đổi pha — nếu không sẽ bị xoá 30 lần/giây */
+    if(lastPhase==='matchover') return;
+    lastPhase='matchover';
+    const w=cur.P.find(p=>p.s===d.result);
+    P.innerHTML=`
+      <h1 style="font-size:24px">🏆 ${w?esc(w.nm)+' vô địch':'Kết thúc'}</h1>
+      <p class="lead">Tỉ số: ${d.score.slice(0,cur.P.length).join(' – ')}</p>
+      <table class="rk"><tr><th>Tên</th><th>Bậc</th><th>MMR</th><th>Thay đổi</th></tr>
+      ${(d.rk||[]).map(r=>`<tr><td>${esc(r.nm)}</td><td>${r.tier}</td><td><b>${r.mmr}</b></td>
+        <td class="${r.dt>=0?'up':'dn'}">${r.dt>=0?'+':''}${r.dt}</td></tr>`).join('')}</table>
+      <div class="lbBox"></div>
+      <div class="acts"><button class="left" id="dLb">Bảng xếp hạng</button>
+        <button class="pri" id="dRe">Đấu lại</button></div>`;
+    document.getElementById('dRe').onclick=()=>{ ws.send(JSON.stringify({t:'rematch'})); ov.classList.remove('on'); };
+    document.getElementById('dLb').onclick=()=>{ ws.send(JSON.stringify({t:'lb'})); };
+    return;
+  }
+}
+
+/* ------------------------- CÂY KỸ NĂNG ------------------------- */
+function openTree(isLoadout){
+  const me=meP(); if(!me) return;
+  treeOpen=true;
+  document.getElementById('treeOv').classList.add('on');
+  document.getElementById('btnRespec').style.display=isLoadout?'':'none';
+  document.getElementById('btnReady').style.display=isLoadout?'':'none';
+  document.getElementById('btnTreeClose').style.display=isLoadout?'none':'';
+  buildTreeDom();
+  renderTree();
+}
+function closeTree(){ treeOpen=false; document.getElementById('treeOv').classList.remove('on');
+  document.getElementById('tip').style.display='none'; }
+
+let treeBuilt='';
+function buildTreeDom(){
+  const me=meP(); if(!me) return;
+  if(treeBuilt===me.cls) return;
+  treeBuilt=me.cls;
+  const box=document.getElementById('treeBox'), svg=document.getElementById('treeSvg');
+  box.querySelectorAll('.nd,.brlab').forEach(e=>e.remove());
+  const M=buildMeta(me.cls), nodes=treeNodes(me.cls);
+  let lines='';
+  for(const n of nodes){
+    const to=POS[n.slot]; if(!to) continue;
+    for(const r of M[n.id].req){
+      const rs=r.slice(me.cls.length+1), from=POS[rs]; if(!from) continue;
+      lines+=`<line data-a="${r}" data-b="${n.id}" x1="${from[0]}" y1="${from[1]}" x2="${to[0]}" y2="${to[1]}"
+        stroke="#2c3358" stroke-width="3"/>`;
+    }
+  }
+  svg.setAttribute('viewBox','0 0 760 520');
+  svg.innerHTML=lines;
+  const D=DATA[me.cls];
+  box.insertAdjacentHTML('beforeend',
+    `<div class="brlab" style="left:170px;top:222px">🅰 ${D.A.nm.toUpperCase()}</div>
+     <div class="brlab" style="left:590px;top:222px">🅱 ${D.B.nm.toUpperCase()}</div>`);
+  for(const n of nodes){
+    const p=POS[n.slot]; if(!p) continue;
+    const el=document.createElement('div');
+    el.className='nd'; el.dataset.id=n.id;
+    el.style.left=p[0]+'px'; el.style.top=p[1]+'px';
+    el.innerHTML=`${n.ic}<span class="cost">${M[n.id].cost}</span>`;
+    el.onclick=()=>{ if(canAllocC(n.id)) ws.send(JSON.stringify({t:'alloc',id:n.id})); };
+    el.onmousemove=(e)=>showTip(e,n,M[n.id]);
+    el.onmouseleave=()=>document.getElementById('tip').style.display='none';
+    box.appendChild(el);
+  }
+}
+function canAllocC(id){
+  const me=meP(); if(!me) return false;
+  const M=buildMeta(me.cls)[id]; if(!M) return false;
+  if(me.nd.includes(id)) return false;
+  if(me.pts<M.cost) return false;
+  if(me.lv<MINLV[M.t]) return false;
+  if(M.br&&me.br&&me.br!==M.br) return false;
+  if(M.req.length){
+    const ok=M.mode==='any'?M.req.some(r=>me.nd.includes(r)):M.req.every(r=>me.nd.includes(r));
+    if(!ok) return false;
+  }
+  return true;
+}
+function renderTree(){
+  const me=meP(); if(!me) return;
+  buildTreeDom();
+  const M=buildMeta(me.cls);
+  const box=document.getElementById('treeBox');
+  box.querySelectorAll('.nd').forEach(el=>{
+    const id=el.dataset.id, own=me.nd.includes(id), can=canAllocC(id);
+    el.classList.toggle('own',own);
+    el.classList.toggle('can',!own&&can);
+    el.classList.toggle('lock',!own&&!can);
+  });
+  document.getElementById('treeSvg').querySelectorAll('line').forEach(l=>{
+    const a=me.nd.includes(l.dataset.a), b=me.nd.includes(l.dataset.b);
+    l.setAttribute('stroke',a&&b?'#6ee7a0':(a?'#5a6394':'#232945'));
+  });
+  const D=DATA[me.cls];
+  document.getElementById('treeTitle').textContent=D.ic+' '+D.nm+(me.br?' — '+D[me.br].nm:'');
+  document.getElementById('treeSub').textContent=cur.mode==='duel'
+    ? 'Màn chuẩn bị PvP — rải '+(CFG?CFG.LOADOUT_PTS:10)+' điểm rồi bấm Sẵn sàng. Build khoá cả trận.'
+    : 'Mỗi cấp +1 điểm. Chọn nhánh ở tầng 3 sẽ khoá nhánh còn lại.';
+  document.getElementById('ptsInfo').innerHTML=`Cấp <b>${me.lv}</b> · Điểm còn <b>${me.pts}</b>`;
+  if(cur.mode==='duel'&&cur.duel){
+    const rd=cur.duel.ready[me.s];
+    const btn=document.getElementById('btnReady');
+    btn.textContent=rd?'✓ Đã sẵn sàng — chờ người khác':'Sẵn sàng';
+    btn.classList.toggle('pri',!rd);
+    let info=document.getElementById('rdyBox');
+    if(!info){ info=document.createElement('div'); info.id='rdyBox'; info.className='rdy';
+      document.getElementById('treeWrap').appendChild(info); }
+    info.innerHTML=cur.P.slice().sort((a,b)=>a.s-b.s).map(p=>
+      `<div class="b ${cur.duel.ready[p.s]?'ok':''}" style="border-left:3px solid ${SLOTCOL[p.s]}">
+        ${esc(p.nm)} — ${cur.duel.ready[p.s]?'sẵn sàng':'đang chọn…'}</div>`).join('')
+      + (cur.P.length<2?'<div class="b">Đang chờ thêm người chơi (cần ít nhất 2)…</div>':'');
+  } else {
+    const info=document.getElementById('rdyBox'); if(info) info.remove();
+  }
+}
+function showTip(e,n,M){
+  const me=meP(); if(!me) return;
+  const t=document.getElementById('tip');
+  const own=me.nd.includes(n.id);
+  let warn='';
+  if(!own){
+    if(me.lv<MINLV[M.t]) warn='Cần cấp '+MINLV[M.t];
+    else if(M.br&&me.br&&me.br!==M.br) warn='Đã theo nhánh khác — không thể học';
+    else if(M.req.length&&!(M.mode==='any'?M.req.some(r=>me.nd.includes(r)):M.req.every(r=>me.nd.includes(r))))
+      warn='Chưa học kỹ năng tiên quyết';
+    else if(me.pts<M.cost) warn='Không đủ điểm kỹ năng';
+  }
+  t.innerHTML=`<div class="tn">${n.ic} ${n.nm}</div><div class="tt">${n.ty} · ${M.cost} điểm · cấp ${MINLV[M.t]}+</div>
+    <div>${n.d}</div>${own?'<div class="tw" style="color:var(--good)">✓ Đã học</div>':(warn?`<div class="tw">${warn}</div>`:'<div class="tw" style="color:var(--gold)">Bấm để học</div>')}`;
+  const box=document.getElementById('treeBox').getBoundingClientRect();
+  t.style.display='block';
+  t.style.left=Math.min(box.width-260,e.clientX-box.left+18)+'px';
+  t.style.top=Math.max(0,e.clientY-box.top-30)+'px';
+}
+document.getElementById('btnTreeClose').onclick=closeTree;
+document.getElementById('btnRespec').onclick=()=>ws.send(JSON.stringify({t:'respec'}));
+document.getElementById('btnReady').onclick=()=>{
+  const me=meP(); if(!me||!cur.duel) return;
+  ws.send(JSON.stringify({t:'ready',v:!cur.duel.ready[me.s]}));
+};
+
+/* ------------------------- INPUT ------------------------- */
+addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(document.activeElement&&document.activeElement.tagName==='INPUT') return;
+  keys[k]=1;
+  if(k===' ') e.preventDefault();
+  if(k==='e'&&ws&&connected) ws.send(JSON.stringify({t:'sk',s:'E'}));
+  if(k==='r'&&ws&&connected) ws.send(JSON.stringify({t:'sk',s:'R'}));
+  if(k==='t'&&cur&&cur.mode==='coop'){ treeOpen?closeTree():openTree(false); }
+  if(k==='escape'&&treeOpen&&cur&&cur.mode==='coop') closeTree();
+});
+addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=0; });
+cv.addEventListener('mousemove',e=>{
+  const r=cv.getBoundingClientRect();
+  mouseX=(e.clientX-r.left)*cv.width/r.width;
+  mouseY=(e.clientY-r.top)*cv.height/r.height;
+});
+cv.addEventListener('mousedown',e=>{ if(e.button===0) firing=true; });
+addEventListener('mouseup',e=>{ if(e.button===0) firing=false; });
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+addEventListener('blur',()=>{ firing=false; for(const k in keys) keys[k]=0; });
+
+setInterval(()=>{
+  if(!ws||!connected||ws.readyState!==1) return;
+  const me=meP();
+  let aim=0;
+  if(me) aim=Math.atan2(mouseY-me.y,mouseX-me.x);
+  const blocked=treeOpen||document.getElementById('duelOv').classList.contains('on');
+  ws.send(JSON.stringify({t:'in',
+    up:!blocked&&(keys['w']||keys['arrowup'])?1:0,
+    dn:!blocked&&(keys['s']||keys['arrowdown'])?1:0,
+    lf:!blocked&&(keys['a']||keys['arrowleft'])?1:0,
+    rt:!blocked&&(keys['d']||keys['arrowright'])?1:0,
+    aim, fire:!blocked&&(firing||keys[' '])?1:0}));
+},1000/30);
+
+/* ------------------------- RENDER ------------------------- */
+function lerp(a,b,t){ return a+(b-a)*t; }
+function findPrev(arr,key,val){ if(!arr) return null; return arr.find(o=>o[key]===val); }
+
+function render(){
+  requestAnimationFrame(render);
+  const now=performance.now();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+
+  /* nền */
+  const g=ctx.createLinearGradient(0,0,0,cv.height);
+  g.addColorStop(0,'#131834'); g.addColorStop(1,'#0a0d1c');
+  ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.strokeStyle='#ffffff06'; ctx.lineWidth=1;
+  for(let x=0;x<cv.width;x+=40){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,cv.height); ctx.stroke(); }
+  for(let y=0;y<cv.height;y+=40){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(cv.width,y); ctx.stroke(); }
+  ctx.strokeStyle='#3a4a8055'; ctx.lineWidth=3; ctx.strokeRect(8,8,cv.width-16,cv.height-16);
+
+  if(!cur){ ctx.fillStyle='#8b93b8'; ctx.font='16px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(connected?'Đang chờ dữ liệu…':'Chưa kết nối',cv.width/2,cv.height/2); return; }
+
+  /* rung màn hình */
+  if(shakeT>0){ shakeT-=1/60; const a=shakeA*(shakeT/0.18);
+    ctx.translate((Math.random()-.5)*a,(Math.random()-.5)*a); if(shakeT<=0) shakeA=0; }
+
+  const alpha=prev?Math.min(1,(now-curT)/(1000/30)):1;
+
+  /* vùng skill */
+  for(const z of cur.Z){
+    ctx.save();
+    if(z.k==='rain'){ ctx.strokeStyle='#6ee7a0aa'; ctx.fillStyle='#6ee7a018'; }
+    else { ctx.strokeStyle='#ba68c8cc'; ctx.fillStyle='#ba68c822'; }
+    ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(z.x,z.y,z.r,0,6.283); ctx.fill(); ctx.stroke();
+    if(z.k==='curse'){ ctx.strokeStyle='#ba68c866';
+      for(let i=0;i<6;i++){ const a=now/500+i; ctx.beginPath();
+        ctx.arc(z.x+Math.cos(a)*z.r*.6,z.y+Math.sin(a)*z.r*.6,4,0,6.283); ctx.stroke(); } }
+    ctx.restore();
+  }
+
+  /* orb PvP */
+  if(cur.duel&&cur.duel.orbs){
+    for(const o of cur.duel.orbs){
+      const f=ORBFX[o.ty]||{c:'#fff',ch:'?'};
+      const b=6+Math.sin(now/220)*3;
+      ctx.save(); ctx.shadowColor=f.c; ctx.shadowBlur=16;
+      ctx.fillStyle=f.c+'33'; ctx.beginPath(); ctx.arc(o.x,o.y,14+b,0,6.283); ctx.fill();
+      ctx.fillStyle=f.c; ctx.beginPath(); ctx.arc(o.x,o.y,9,0,6.283); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle='#08101c'; ctx.font='bold 12px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(f.ch,o.x,o.y+1);
+    }
+  }
+
+  /* quái */
+  for(const e of cur.E){
+    const pe=findPrev(prev&&prev.E,'i',e.i);
+    const x=pe?lerp(pe.x,e.x,alpha):e.x, y=pe?lerp(pe.y,e.y,alpha):e.y;
+    drawEnemy(x,y,e,now);
+  }
+  /* xác quái đang tan (đã biến khỏi snapshot nhưng animation die chưa xong) */
+  for(const c of CORPSES)
+    ZASprites.draw(ctx,{key:c.key,x:c.x,y:c.y+c.r,state:'die',t:now,
+      stateT:now-c.t0,scale:c.r/8,facing:c.facing});
+
+  /* đạn */
+  for(const r of cur.R) drawProj(r);
+
+  /* người chơi */
+  for(const p of cur.P){
+    if(!p.al) { drawGhost(p,now); continue; }
+    const pp=findPrev(prev&&prev.P,'s',p.s);
+    const x=pp?lerp(pp.x,p.x,alpha):p.x, y=pp?lerp(pp.y,p.y,alpha):p.y;
+    drawHero(x,y,p,now);
+  }
+
+  /* hiệu ứng */
+  for(let i=fx.length-1;i>=0;i--){
+    const f=fx[i]; f.t-=1/60;
+    const k=Math.max(0,f.t/f.mt);
+    ctx.save(); ctx.globalAlpha=k;
+    if(f.k==='ring'){ ctx.strokeStyle='#ffffffcc'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(f.x,f.y,f.r*(1.15-k*0.15),0,6.283); ctx.stroke(); }
+    if(f.k==='slash'){ ctx.strokeStyle=f.c; ctx.lineWidth=5; ctx.lineCap='round';
+      ctx.beginPath(); ctx.arc(f.x,f.y,f.r*.8,f.a-0.8,f.a+0.8); ctx.stroke(); }
+    if(f.k==='cone'){ ctx.fillStyle='#63d9ff44';
+      ctx.beginPath(); ctx.moveTo(f.x,f.y); ctx.arc(f.x,f.y,f.r*(1.4-k*0.4),f.a-0.7,f.a+0.7); ctx.fill(); }
+    ctx.restore();
+    if(f.t<=0) fx.splice(i,1);
+  }
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.08; p.t-=1/60;
+    ctx.globalAlpha=Math.max(0,p.t/0.6); ctx.fillStyle=p.c; ctx.fillRect(p.x-2,p.y-2,4,4); ctx.globalAlpha=1;
+    if(p.t<=0) parts.splice(i,1);
+  }
+  ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+  for(let i=nums.length-1;i>=0;i--){
+    const n=nums[i]; n.y+=n.vy; n.vy*=0.96; n.t-=1/60;
+    ctx.globalAlpha=Math.max(0,Math.min(1,n.t*2));
+    ctx.fillStyle='#000'; ctx.font=`bold ${n.s}px sans-serif`;
+    ctx.fillText(n.v,n.x+1,n.y+1);
+    ctx.fillStyle=n.c; ctx.fillText(n.v,n.x,n.y);
+    ctx.globalAlpha=1;
+    if(n.t<=0) nums.splice(i,1);
+  }
+}
+
+function drawEnemy(x,y,e,now){
+  const a=animOf('e'+e.i), r=e.r;
+  ZASprites.draw(ctx,{key:e.ty,x,y:y+r,state:a.st,t:now,stateT:now-a.t0,
+    scale:r/8,facing:a.facing});
+  /* Vòng làm chậm, dấu độc và thanh máu giữ nguyên như bản cũ.
+     Độc trước kia thể hiện bằng cách nhuộm xanh thân quái — sprite có bảng
+     màu cố định nên đổi thành bọt độc nổi phía trên. */
+  if(e.sl){ ctx.strokeStyle='#ba68c8'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(x,y,r+4,0,6.283); ctx.stroke(); }
+  if(e.ps){
+    ctx.fillStyle='#9be36a';
+    for(let i=0;i<3;i++){
+      const ph=(now/420+i*0.37)%1;
+      ctx.globalAlpha=0.9*(1-ph);
+      ctx.fillRect(Math.round(x-r*0.5+i*r*0.5),Math.round(y-r-2-ph*10),2,2);
+    }
+    ctx.globalAlpha=1;
+  }
+  if(e.hp<e.mhp){
+    ctx.fillStyle='#000a'; ctx.fillRect(x-r,y-r-9,r*2,4);
+    ctx.fillStyle='#ff5c6c'; ctx.fillRect(x-r,y-r-9,r*2*(e.hp/e.mhp),4);
+  }
+}
+
+function drawProj(r){
+  if(r.ty==='evil'){ ctx.fillStyle='#c58cff'; ctx.beginPath(); ctx.arc(r.x,r.y,5,0,6.283); ctx.fill();
+    ctx.strokeStyle='#c58cff66'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(r.x,r.y,8,0,6.283); ctx.stroke(); return; }
+  const col=SLOTCOL[r.o]||'#fff';
+  ctx.save(); ctx.translate(r.x,r.y); ctx.rotate(r.a);
+  if(r.ty==='arrow'){ ctx.fillStyle=col; ctx.fillRect(-8,-1.5,16,3); ctx.fillStyle='#fff'; ctx.fillRect(6,-2.5,4,5); }
+  else if(r.ty==='bolt'){ ctx.fillStyle='#ffd76a'; ctx.fillRect(-7,-2.5,14,5); }
+  else if(r.ty==='pierce'){ ctx.shadowColor=col; ctx.shadowBlur=12; ctx.fillStyle='#fff'; ctx.fillRect(-14,-3,28,6); }
+  else { ctx.shadowColor=col; ctx.shadowBlur=10; ctx.fillStyle=col; ctx.beginPath(); ctx.arc(0,0,6,0,6.283); ctx.fill(); }
+  ctx.restore();
+}
+
+function drawGhost(p,now){
+  /* Khối màu cũ đổi thành animation gục ngã của sprite; hết animation thì
+     chỉ còn đồng hồ hồi sinh (để không lẫn khối vuông giữa dàn pixel). */
+  const a=animOf('p'+p.s), el=now-a.t0;
+  if(a.st==='die'&&el<ZASprites.DUR.die)
+    ZASprites.draw(ctx,{key:heroKey(p),x:p.x,y:p.y+13,state:'die',t:now,
+      stateT:el,scale:1.25,facing:a.facing});
+  ctx.fillStyle='#ffffff88'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(p.el?'BỊ LOẠI':Math.ceil(p.dt)+'s',p.x,p.y-20);
+}
+
+function drawHero(x,y,p,now){
+  const col=SLOTCOL[p.s], a=animOf('p'+p.s);
+  const isMe=p.s===ME.slot;
+
+  /* Bóng + vòng màu slot. Sprite không mang màu người chơi nên hai người cùng
+     class sẽ trùng hình — vòng dưới chân là dấu phân biệt. */
+  ctx.fillStyle='#00000055'; ctx.beginPath(); ctx.ellipse(x,y+13,11,4,0,0,6.283); ctx.fill();
+  ctx.save(); ctx.globalAlpha=.9; ctx.strokeStyle=col; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.ellipse(x,y+13,11,4,0,0,6.283); ctx.stroke(); ctx.restore();
+
+  /* hào quang buff */
+  if(p.bf&1){ aura(x,y,'#ff8a72',now,20); }
+  if(p.bf&2){ aura(x,y,'#ffd76a',now,23); }
+  if(p.bf&4){ aura(x,y,'#ff5c6c',now,18); }
+  if(p.bf&16){ aura(x,y,'#9be36a',now,16); }
+
+  /* khiên */
+  if(p.bf&8){
+    ctx.save(); ctx.strokeStyle='#cfd8ffcc'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(x,y-2,18+Math.sin(now/300)*1.5,0,6.283); ctx.stroke();
+    ctx.fillStyle='#cfd8ff18'; ctx.fill(); ctx.restore();
+  }
+
+  /* thân + vũ khí: sprite 16×16 (y truyền vào là ĐÁY chân) */
+  ZASprites.draw(ctx,{key:heroKey(p),x,y:y+13,state:a.st,t:now,stateT:now-a.t0,
+    scale:1.25,facing:a.facing,shadow:false});
+
+  /* viền người mình */
+  if(isMe){ ctx.strokeStyle=col; ctx.lineWidth=1; ctx.globalAlpha=.5;
+    ctx.beginPath(); ctx.arc(x,y,22,0,6.283); ctx.stroke(); ctx.globalAlpha=1; }
+
+  /* tên + máu nổi */
+  ctx.textAlign='center';
+  ctx.fillStyle='#000'; ctx.font='bold 10px sans-serif';
+  ctx.fillText(p.nm,x+1,y-27); ctx.fillStyle=col; ctx.fillText(p.nm,x,y-28);
+  ctx.fillStyle='#000a'; ctx.fillRect(x-16,y-24,32,4);
+  ctx.fillStyle='#ff5c6c'; ctx.fillRect(x-16,y-24,32*Math.max(0,p.hp/p.mhp),4);
+  if(p.sh>0){ ctx.fillStyle='#cfd8ffcc'; ctx.fillRect(x-16,y-24,32*Math.min(1,p.sh/p.mhp),2); }
+}
+function aura(x,y,c,now,r){
+  ctx.save(); ctx.globalAlpha=.35+Math.sin(now/200)*.12;
+  ctx.strokeStyle=c; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(x,y,r,0,6.283); ctx.stroke(); ctx.restore();
+}
+
+/* ------------------------- KHỞI ĐỘNG ------------------------- */
+rw();
+render();
+</script>
+</body>
+</html>
