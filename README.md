@@ -175,9 +175,19 @@ Nhân vật và quái **vẽ hoàn toàn bằng Canvas 2D, không có một file
 - `sprites.js` — bộ **"Hero's Quest"**, khung 92×76, góc nhìn 3/4 top-down. **9 skin hero** (3 nhánh × 3 class) + 4 quái, mỗi con đủ 5 trạng thái `idle` · `move` · `attack` · `hit` · `die`. Frame được cache theo `key|state|slot|facing` nên vẽ hàng chục nhân vật vẫn nhẹ. Dùng cho `map1.html`.
 - `sprites-legacy.js` — bộ pixel 16×16 cũ, 6 skin hero. Dùng cho `index.html`.
 
+9 skin hero là **ngoại hình theo nhánh nâng cấp**. Map 1 chưa có hệ nhánh nên đang chia theo slot; khi server gửi thêm trường `br` thì ngoại hình tự đổi, không phải sửa phần vẽ.
+
 Chi tiết API và cách tích hợp: [`SPRITES_HANDOFF.md`](SPRITES_HANDOFF.md).
 
-9 skin hero là **ngoại hình theo nhánh nâng cấp**. Map 1 chưa có hệ nhánh nên đang chia theo slot; khi server gửi thêm trường `br` thì ngoại hình tự đổi, không phải sửa phần vẽ.
+---
+
+## Giao diện
+
+`map1.html` chạy hệ thiết kế **"Thiên Bàn"** — nền tím than, nhấn thạch anh tím, vạch góc thay bo góc, ba font: Cormorant Garamond (tên gọi, tiêu đề, đồng hồ) · Be Vietnam Pro (câu văn) · JetBrains Mono (nhãn máy, số liệu). Đặc tả đầy đủ ở [`UI_HANDOFF.md`](UI_HANDOFF.md).
+
+> Font nạp từ Google Fonts qua `<link>`. Chơi LAN không có internet thì tụt về font hệ thống — muốn chắc chắn thì tải font về máy và khai báo `@font-face`.
+
+`index.html` (arena cũ) vẫn giữ giao diện navy/cyan trước đó.
 
 ---
 
@@ -196,6 +206,7 @@ Chi tiết API và cách tích hợp: [`SPRITES_HANDOFF.md`](SPRITES_HANDOFF.md)
 | `TIEN-DO.md` | Nhật ký tiến độ, các quyết định làm khác handoff |
 | `HANDOFF.md` | Kiến trúc arena cũ, cho dev |
 | `SPRITES_HANDOFF.md` | API sprite và cách tích hợp |
+| `UI_HANDOFF.md` | Đặc tả hệ chữ, bảng màu và UI của map 1 |
 | `pitch.html` | Trang pitch của dự án |
 | `ranks.json` | Xếp hạng ELO của arena cũ (tự sinh, không commit) |
 

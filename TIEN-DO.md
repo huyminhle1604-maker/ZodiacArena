@@ -38,6 +38,22 @@ Trên Windows có thể double-click `start.bat`.
 - `skinOf(p)` ưu tiên `p.br` (nhánh) nếu server gửi, chưa có thì chia theo `p.s % 3` để mỗi slot một dáng. **Khi làm hệ nhánh cho map1, chỉ cần broadcast thêm trường `br` là ngoại hình tự đổi.**
 - `map1-server.js` không sửa dòng nào.
 
+### UI "Thiên Bàn" — áp vào `map1.html`
+Theo `UI_HANDOFF.md` + trang đối chiếu `Zodiac Arena UI.dc.html` của Claude Design. Chỉ đổi lớp trình bày, không đụng gameplay/netcode/`map1-server.js`.
+- **Font**: Cormorant Garamond (tên gọi, tiêu đề, đồng hồ, phím kỹ năng) · Be Vietnam Pro (câu văn) · JetBrains Mono (nhãn máy, số liệu). Nạp qua `<link>` Google Fonts — xem cảnh báo dưới.
+- **Màu**: nền navy → tím than `#0C0910`, nhấn cyan → thạch anh tím `#B98BE8`; giữ vàng và cam. Toàn bộ hex rời trong `<style>` đã gom về biến `:root`.
+- **Mô-típ**: vạch góc (`.tick`, `::before/::after`) thay bo góc; nhãn mono giãn chữ; kẻ chỉ vàng hai bên đồng hồ; viền trái phân loại cho toast và hàng blessing; nút chính khối đặc.
+- **HUD**: khiên vẽ **nối tiếp** sau máu (không đè) + sọc chéo + 10 vạch chia + nhãn số có nền riêng; ô kỹ năng 60×60 hiện tên chiêu khi sẵn sàng / số giây khi hồi; minimap 222×148 với 4 vạch góc vàng + hàng chú giải; cột blessing có ô glyph viền màu theo slot.
+- **4 hộp thoại** dựng lại: vào game, blessing, merchant, kết quả (bảng grid 6 cột thay `<table>`).
+
+Bốn chỗ làm khác handoff:
+1. **Vạch góc dùng `::before/::after`** thay 2 thẻ `.tick-tl/.tick-br` — cùng kết quả, không thêm DOM. Minimap cần 4 góc nên có thêm một `<i class="c2">`.
+2. **Ký hiệu hoàng đạo phải ép `U+FE0E`** — không có thì trình duyệt vẽ thành emoji màu, phá bảng màu.
+3. **Tên kỹ năng và mô tả món hàng giữ ở client** (`SKNM`, `SHOPD`) vì server không gửi. Tên chiêu phải ≤9 ký tự mới vừa ô 60px ở mono 8.5px — `Khiên Thánh` rút thành `Khiên`.
+4. **`#intro` dùng `align-items:flex-start` + `.card{margin:auto}`** thay `center` — màn hình thấp hơn thẻ thì `center` cắt mất đầu thẻ.
+
+⚠ **Font tải từ Google Fonts CDN.** Game chạy LAN nên máy không có mạng sẽ tụt về Georgia/Consolas — đúng vấn đề handoff muốn tránh. Muốn chắc thì tải 3 font về `fonts/` rồi khai báo `@font-face`, và thêm `.woff2` vào bảng `MIME` trong `map1-server.js`.
+
 ---
 
 ## Ba chỗ làm khác `SPRITES_HANDOFF.md` (cân nhắc lại nếu cần)
