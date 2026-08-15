@@ -198,6 +198,11 @@
   #xpb .f{background:var(--gold)}
   #xptx{font-family:var(--font-mono);font-size:9px;letter-spacing:.12em;color:var(--ink-3);font-variant-numeric:tabular-nums}
 
+  /* ở sảnh không có máu/mana/kỹ năng/minimap/blessing để hiện */
+  #hud.inlobby .minibox,#hud.inlobby .rightcol,#hud.inlobby .botright,
+  #hud.inlobby #hpb,#hud.inlobby #mpb,#hud.inlobby .xprow{display:none}
+  #hud.inlobby .purse .xu{display:none}
+
   /* ---------- nút lên cấp ---------- */
   .lvup{pointer-events:auto;display:flex;align-items:center;gap:10px;background:var(--panel);
     border:1px solid var(--accent);padding:7px 13px 7px 9px;position:relative;
@@ -415,36 +420,21 @@
   <div class="card tick">
     <div class="eyebrow">Prototype · vòng lặp map 1</div>
     <h1>Zodiac<b>Arena</b></h1>
-    <p class="sub">Mười phút trên map 1. Đánh quái lấy xu, mở rương lấy blessing và token, mua đồ ở merchant, hạ world boss. Hết giờ là mưa thiên thạch và năm cổng dịch chuyển — tới được cổng thì giữ token, không kịp thì mất trắng.</p>
+    <p class="sub">Vào sảnh trước: chọn class ở Giáo Trưởng, chọn cung hoàng đạo ở Chiêm Tinh Sư, mua vũ khí bằng token ở Thợ Rèn. Xong thì bước vào cổng dịch chuyển để ra map 1 — mười phút săn đồ, hết giờ là mưa thiên thạch và năm cổng thoát.</p>
 
     <div class="fld">
       <label>Tên nhân vật</label>
       <input type="text" id="nameIn" maxlength="14" placeholder="Nhập tên...">
     </div>
 
-    <div class="fld">
-      <label>Class</label>
-      <div class="cls-row" id="clsRow">
-        <button class="cls on" data-c="sw"><b>Kiếm sĩ</b><span>HP130 · cận chiến</span></button>
-        <button class="cls" data-c="ar"><b>Xạ thủ</b><span>HP92 · tầm xa</span></button>
-        <button class="cls" data-c="mk"><b>Nhà sư</b><span>HP100 · phép</span></button>
-      </div>
-    </div>
-
-    <div class="fld">
-      <label>Cung hoàng đạo · quyết định blessing bị động</label>
-      <div class="sign-grid" id="signGrid"></div>
-      <div class="signinfo" id="signInfo">Chọn một cung để xem hiệu ứng bị động.</div>
-    </div>
-
-    <button class="go" id="goBtn" disabled>Chọn cung để vào map</button>
+    <button class="go" id="goBtn">Vào sảnh</button>
 
     <div class="keys">
       <kbd>WASD</kbd><span>Di chuyển</span>
       <kbd>Chuột</kbd><span>Ngắm · giữ trái để đánh</span>
       <kbd>Shift</kbd><span>Lướt (dash)</span>
       <kbd>E / R</kbd><span>Kỹ năng class · kỹ năng mạnh</span>
-      <kbd>F</kbd><span>Giữ để mở rương · mở merchant</span>
+      <kbd>F</kbd><span>Nói chuyện NPC · giữ để mở rương · merchant</span>
       <kbd>T</kbd><span>Cây kỹ năng</span>
     </div>
   </div>
@@ -454,6 +444,7 @@
 <div id="shop" class="modal hide"></div>
 <div id="over" class="modal hide"></div>
 <div id="tree" class="modal hide"></div>
+<div id="npc" class="modal hide"></div>
 
 <script>
 /* ================= trạng thái ================= */
@@ -565,38 +556,10 @@ function resize(){ cv.width=innerWidth; cv.height=innerHeight; ctx.imageSmoothin
 addEventListener('resize',resize); resize();
 
 /* ================= intro ================= */
-document.getElementById('clsRow').addEventListener('click',function(e){
-  var b=e.target.closest('.cls'); if(!b) return;
-  [].forEach.call(this.children,function(c){c.classList.remove('on')});
-  b.classList.add('on'); CLS=b.dataset.c;
-});
-/* Bảng chọn cung dựng từ CFG — mô tả bị động lấy thẳng từ server,
-   không chép lại ở client để khỏi lệch khi cân bằng lại. */
-var SIGN=null;
-function buildSignGrid(){
-  var g=document.getElementById('signGrid'); if(!g||!CFG||g.children.length) return;
-  var h='';
-  CFG.SIGNS.forEach(function(sg){
-    h+='<button class="sgn" data-s="'+sg+'"><b>'+SIGN_GLYPH[sg]+'</b><span>'+CFG.SIGN_NM[sg]+'</span></button>';
-  });
-  g.innerHTML=h;
-  g.addEventListener('click',function(e){
-    var b=e.target.closest('.sgn'); if(!b) return;
-    [].forEach.call(g.children,function(c){c.classList.remove('on')});
-    b.classList.add('on'); SIGN=b.dataset.s;
-    var info=document.getElementById('signInfo');
-    info.classList.add('on');
-    info.innerHTML='<b>'+SIGN_GLYPH[SIGN]+' '+CFG.SIGN_NM[SIGN]+' · '+CFG.SIGN_THEME[SIGN]+'</b>'+
-                   '<i>Bị động: '+CFG.BLESS[SIGN].pas+'</i>';
-    var go=document.getElementById('goBtn');
-    go.disabled=false; go.textContent='Vào map 1';
-  });
-}
-
 document.getElementById('goBtn').onclick=function(){
-  if(!SIGN||!WS||WS.readyState!==1) return;
+  if(!WS||WS.readyState!==1) return;
   var nm=document.getElementById('nameIn').value.trim()||'Người chơi';
-  WS.send(JSON.stringify({t:'join',nm:nm,cls:CLS,sg:SIGN}));
+  WS.send(JSON.stringify({t:'join',nm:nm}));
 };
 document.getElementById('nameIn').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('goBtn').click(); });
 document.getElementById('lvupBtn').onclick=function(){ openTree(); };
@@ -612,14 +575,14 @@ connect();
 function sendMsg(o){ if(WS&&WS.readyState===1) WS.send(JSON.stringify(o)); }
 
 function onMsg(m){
-  if(m.t==='welcome'){ CFG=m.cfg; buildSignGrid(); return; }
+  if(m.t==='welcome'){ CFG=m.cfg; return; }
   if(m.t==='full'){ alert('Phòng đã đầy'); return; }
   if(m.t==='joined'){
     MY=m.slot; joined=true;
     document.getElementById('intro').classList.add('hide');
     document.getElementById('hud').classList.remove('hide');
     buildSlotHud();
-    sendMsg({t:'ready',v:true});
+    /* KHÔNG tự sẵn sàng nữa — vào sảnh trước, bước vào cổng mới ra map 1 */
     return;
   }
   if(m.t==='reset'){ location.reload(); return; }
@@ -676,6 +639,7 @@ addEventListener('keydown',function(e){
   var k=e.key.toLowerCase();
   keys[k]=1;
   if(!joined) return;
+  if(inLobby()) return;                 // sảnh không có chiến đấu
   if(k==='e') sendMsg({t:'sk',s:'E'});
   if(k==='r') sendMsg({t:'sk',s:'R'});
   if(e.key==='Shift') sendMsg({t:'dash'});
@@ -683,16 +647,23 @@ addEventListener('keydown',function(e){
     if(treeOpen) closeTree();
     else if(cur&&cur.me) openTree();
   }
+  if(k==='f'&&inLobby()){
+    if(npcOpen) closeNpc();
+    else if(cur.me&&cur.me.npc) openNpc(cur.me.npc);
+    else if(cur.me&&cur.me.gate) openNpc('gate');
+    return;
+  }
   if(k==='f'){
     if(shopOpen) closeShop();
     else if(cur&&cur.me&&cur.me.nm2>=0) openShop();
   }
   if(e.key==='Escape'&&shopOpen) closeShop();
   if(e.key==='Escape'&&treeOpen) closeTree();
+  if(e.key==='Escape'&&npcOpen) closeNpc();
 });
 addEventListener('keyup',function(e){ keys[e.key.toLowerCase()]=0; if(e.key==='Shift') keys['shift']=0; });
 cv.addEventListener('mousemove',function(e){ mouse.x=e.clientX; mouse.y=e.clientY; });
-cv.addEventListener('mousedown',function(e){ if(e.button===0) firing=true; });
+cv.addEventListener('mousedown',function(e){ if(e.button===0&&!inLobby()) firing=true; });
 addEventListener('mouseup',function(e){ if(e.button===0) firing=false; });
 addEventListener('blur',function(){ keys={}; firing=false; });
 
@@ -703,7 +674,7 @@ setInterval(function(){
   sendMsg({t:'in',
     up:keys['w']||keys['arrowup']?1:0, dn:keys['s']||keys['arrowdown']?1:0,
     lf:keys['a']||keys['arrowleft']?1:0, rt:keys['d']||keys['arrowright']?1:0,
-    fire:(firing||keys[' '])?1:0, use:keys['f']?1:0,
+    fire:(!inLobby()&&(firing||keys[' ']))?1:0, use:(!inLobby()&&keys['f'])?1:0,
     aim:Math.atan2(wy-me.y,wx-me.x)});
 },1000/30);
 
@@ -815,6 +786,97 @@ function showOver(res){
   box.querySelector('#againB').onclick=function(){ sendMsg({t:'again'}); };
 }
 
+/* ================= sảnh: NPC và cổng ================= */
+var npcOpen=null, npcSig='';
+function openNpc(id){ npcOpen=id; npcSig=''; renderNpc(); document.getElementById('npc').classList.remove('hide'); }
+function closeNpc(){ npcOpen=null; document.getElementById('npc').classList.add('hide'); }
+
+function renderNpc(){
+  if(!npcOpen||!cur||!cur.me||!CFG.LOBBY) return;
+  var M=cur.me;
+  /* chỉ vẽ lại khi dữ liệu đổi — vẽ mỗi frame thì nút bị thay giữa
+     mousedown và mouseup nên click không ăn */
+  var sig=npcOpen+'|'+M.cls+'|'+M.sign+'|'+M.weapon+'|'+M.mtoken;
+  if(sig===npcSig) return;
+  npcSig=sig;
+
+  var h='';
+  if(npcOpen==='class'){
+    h='<div class="mbox tick"><div class="mhead"><div class="eyebrow">Giáo Trưởng</div>'+
+      '<h2>Chọn class</h2></div>'+
+      '<p class="note">Đổi class là <b style="color:var(--ink)">xoá sạch cây kỹ năng</b> đang có. Vũ khí không dùng được cho class mới cũng bị tháo ra.</p>'+
+      '<div class="signrow">';
+    ['sw','ar','mk'].forEach(function(c){
+      var C=CFG.CLASSES[c], on=M.cls===c;
+      h+='<button class="signcard'+(on?' on':'')+'" data-cls="'+c+'">'+
+         '<b>'+C.nm+'</b>'+
+         '<span>HP '+C.hp+' · ATK '+C.atk+'</span>'+
+         '<span>MANA '+C.mp+' · TẦM '+C.rng+'</span></button>';
+    });
+    h+='</div><div class="mrow"><button class="ghost" id="closeNpc">Rời đi (F / Esc)</button></div></div>';
+  }
+
+  if(npcOpen==='sign'){
+    h='<div class="mbox tick"><div class="mhead"><div class="eyebrow">Chiêm Tinh Sư</div>'+
+      '<h2>Chọn cung hoàng đạo</h2></div>'+
+      '<p class="note">Cung bạn chọn vào thẳng slot <b style="color:var(--ink)">Bị Động</b>, nên vào map là đã có sẵn một blessing.</p>'+
+      '<div class="sign-grid">';
+    CFG.SIGNS.forEach(function(sg){
+      h+='<button class="sgn'+(M.sign===sg?' on':'')+'" data-sign="'+sg+'">'+
+         '<b>'+SIGN_GLYPH[sg]+'</b><span>'+CFG.SIGN_NM[sg]+'</span></button>';
+    });
+    h+='</div>';
+    if(M.sign) h+='<div class="signinfo on"><b>'+SIGN_GLYPH[M.sign]+' '+CFG.SIGN_NM[M.sign]+' · '+CFG.SIGN_THEME[M.sign]+'</b>'+
+                  '<i>Bị động: '+CFG.BLESS[M.sign].pas+'</i></div>';
+    else h+='<div class="signinfo">Chưa chọn cung nào — cổng dịch chuyển sẽ không cho đi.</div>';
+    h+='<div class="mrow"><button class="ghost" id="closeNpc">Rời đi (F / Esc)</button></div></div>';
+  }
+
+  if(npcOpen==='shop'){
+    var list=CFG.WEAPONS.filter(function(w){return w.cls===M.cls});
+    h='<div class="mbox tick"><div class="mhead"><div class="eyebrow">Thợ Rèn</div>'+
+      '<h2>Cửa hàng vũ khí</h2></div>'+
+      '<p class="note">Bạn có <b style="font-family:var(--font-mono);color:var(--accent)">'+M.mtoken+' token</b>'+
+      ' · token kiếm từ ván trước, chỉ giữ được nếu bạn thoát qua cổng</p>'+
+      '<div class="shoprow">';
+    list.forEach(function(w){
+      var own=M.weapon===w.id, poor=M.mtoken<w.cost;
+      h+='<button class="shopit'+(own?' sold':'')+'" data-w="'+w.id+'"'+((own||poor)?' disabled':'')+'>'+
+         '<div><b>'+w.nm+'</b><i>'+w.d+'</i></div>'+
+         '<u>'+(own?'đang cầm':w.cost+' token')+'</u></button>';
+    });
+    h+='</div><div class="mrow"><button class="ghost" id="closeNpc">Rời đi (F / Esc)</button></div></div>';
+  }
+
+  if(npcOpen==='gate'){
+    var ready=!!M.sign;
+    h='<div class="mbox tick"><div class="mhead"><div class="eyebrow">Cổng dịch chuyển</div>'+
+      '<h2>Ra map 1?</h2></div>';
+    h+='<div class="rtab" style="grid-template-columns:1fr 2fr">'+
+       '<div class="h">Class</div><div class="h">Cung · bị động</div>'+
+       '<div class="c">'+CFG.CLASSES[M.cls].nm+'</div>'+
+       '<div class="c">'+(M.sign?SIGN_GLYPH[M.sign]+' '+CFG.SIGN_NM[M.sign]:'<span style="color:var(--danger)">chưa chọn</span>')+'</div>'+
+       '<div class="h">Vũ khí</div><div class="h">Token mang theo</div>'+
+       '<div class="c">'+(M.weapon?CFG.WEAPONS.filter(function(w){return w.id===M.weapon})[0].nm:'tay không')+'</div>'+
+       '<div class="c n tk">'+M.mtoken+'</div></div>';
+    h+='<p class="note">'+(ready
+        ? 'Mười phút săn đồ. Hết giờ là mưa thiên thạch và năm cổng thoát — tới được cổng thì giữ token, không kịp thì mất trắng.'
+        : '<b style="color:var(--danger)">Phải gặp Chiêm Tinh Sư chọn cung trước đã.</b>')+'</p>';
+    h+='<div class="mfoot"><span class="fn">Cây kỹ năng và blessing nhặt trong ván không mang về sảnh.</span>'+
+       (ready?'<button class="go" id="enterBtn">Vào map 1</button>'
+             :'<button class="ghost" id="closeNpc">Quay lại</button>')+'</div></div>';
+  }
+
+  var box=document.getElementById('npc');
+  box.innerHTML=h;
+  box.querySelectorAll('[data-cls]').forEach(function(b){ b.onclick=function(){ sendMsg({t:'setcls',v:b.dataset.cls}); }; });
+  box.querySelectorAll('[data-sign]').forEach(function(b){ b.onclick=function(){ sendMsg({t:'setsign',v:b.dataset.sign}); }; });
+  box.querySelectorAll('[data-w]').forEach(function(b){ b.onclick=function(){ sendMsg({t:'buyw',id:b.dataset.w}); }; });
+  var cn=box.querySelector('#closeNpc'); if(cn) cn.onclick=closeNpc;
+  var en=box.querySelector('#enterBtn');
+  if(en) en.onclick=function(){ sendMsg({t:'enter'}); closeNpc(); };
+}
+
 /* ================= cây kỹ năng ================= */
 var treeOpen=false, treeSig='';
 function openTree(){ treeOpen=true; treeSig=''; renderTree(); document.getElementById('tree').classList.remove('hide'); }
@@ -910,6 +972,37 @@ function syncHud(){
   var me=meP(), M=cur.me;
   if(!me) return;
 
+  /* ----- ở sảnh: HUD rút gọn ----- */
+  var lob=inLobby();
+  /* về sảnh thì dọn bảng kết quả và mọi hộp của ván trước */
+  if(lob&&overShown){
+    overShown=false;
+    document.getElementById('over').classList.add('hide');
+    document.getElementById('offer').classList.add('hide');
+    closeShop(); closeTree();
+  }
+  document.getElementById('hud').classList.toggle('inlobby',lob);
+  if(lob){
+    document.getElementById('clock').textContent='SẢNH';
+    document.getElementById('clock').style.color='var(--gold)';
+    document.getElementById('phase').textContent='Chuẩn bị trước khi ra map 1';
+    document.getElementById('bossline').classList.add('hide');
+    document.getElementById('whoNm').textContent=me.nm;
+    document.getElementById('whoSub').textContent=
+      (CFG.CLASSES[M.cls]||{nm:''}).nm+(M.sign?' · '+CFG.SIGN_NM[M.sign]:' · chưa chọn cung');
+    document.getElementById('xuv').textContent='—';
+    document.getElementById('tkv').textContent=M.mtoken;
+    var pw2=document.getElementById('promptwrap'), pr2=document.getElementById('prompt');
+    var npcNm=M.npc?(CFG.LOBBY.npcs.filter(function(n){return n.id===M.npc})[0]||{}).nm:null;
+    if(npcOpen){ pw2.classList.add('hide'); renderNpc(); }
+    else if(npcNm){ pw2.classList.remove('hide'); pr2.innerHTML='<kbd>F</kbd><span>Nói chuyện với '+npcNm+'</span>'; }
+    else if(M.gate){ pw2.classList.remove('hide'); pr2.innerHTML='<kbd>F</kbd><span>Bước vào cổng dịch chuyển</span>'; }
+    else pw2.classList.add('hide');
+    document.getElementById('chestbar').classList.add('hide');
+    document.getElementById('lvupBtn').classList.add('hide');
+    return;
+  }
+
   /* ----- đồng hồ + pha ----- */
   var t=cur.tm, mm=Math.floor(t/60), ss=Math.floor(t%60);
   var clock=document.getElementById('clock');
@@ -1001,6 +1094,10 @@ function cd(id,c,mx,nm){
 
 /* ================= render ================= */
 function lerp(a,b,t){ return a+(b-a)*t; }
+/* Sảnh là map riêng, nhỏ hơn map 1 — camera phải bám theo đúng kích thước. */
+function inLobby(){ return !!(cur&&cur.lobby); }
+function worldW(){ return inLobby()?CFG.LOBBY.W:CFG.MW; }
+function worldH(){ return inLobby()?CFG.LOBBY.H:CFG.MH; }
 
 function render(){
   requestAnimationFrame(render);
@@ -1013,8 +1110,8 @@ function render(){
     var pm=prev?prev.P.find(function(p){return p.s===MY}):null;
     var mx=pm?lerp(pm.x,me.x,alpha):me.x, my=pm?lerp(pm.y,me.y,alpha):me.y;
     cam.x=mx-vw/2; cam.y=my-vh/2;
-    cam.x=Math.max(0,Math.min(Math.max(0,CFG.MW-vw),cam.x));
-    cam.y=Math.max(0,Math.min(Math.max(0,CFG.MH-vh),cam.y));
+    cam.x=Math.max(0,Math.min(Math.max(0,worldW()-vw),cam.x));
+    cam.y=Math.max(0,Math.min(Math.max(0,worldH()-vh),cam.y));
   }
 
   ctx.fillStyle='#151019'; ctx.fillRect(0,0,cv.width,cv.height);
@@ -1023,23 +1120,80 @@ function render(){
   ctx.translate(-cam.x,-cam.y);
   ctx.imageSmoothingEnabled=false;
 
-  drawGround();
-  drawPools();
-  drawChests();
-  drawMerchants();
-  drawGates();
-  drawLoot();
-  drawEnemies(alpha);
-  drawProjs();
-  drawPlayers(alpha);
-  drawMeteors();
-  drawFx();
+  if(inLobby()){
+    drawLobby();
+    drawPlayers(alpha);
+  } else {
+    drawGround();
+    drawPools();
+    drawChests();
+    drawMerchants();
+    drawGates();
+    drawLoot();
+    drawEnemies(alpha);
+    drawProjs();
+    drawPlayers(alpha);
+    drawMeteors();
+    drawFx();
+  }
 
   ctx.restore();
-  drawEdge();
-  drawMini();
+  if(!inLobby()){ drawEdge(); drawMini(); }
   syncHud();
   stepFx();
+}
+
+/* ---- sảnh: nền, tường, 3 NPC, cổng dịch chuyển ---- */
+function drawLobby(){
+  var L=CFG.LOBBY, now=performance.now();
+
+  /* nền lát đá + lưới thưa hơn map 1 cho ra cảm giác trong nhà */
+  ctx.fillStyle='#181220'; ctx.fillRect(0,0,L.W,L.H);
+  ctx.strokeStyle='#221A2C'; ctx.lineWidth=1/ZOOM;
+  ctx.beginPath();
+  for(var x=0;x<=L.W;x+=80){ ctx.moveTo(x,0); ctx.lineTo(x,L.H); }
+  for(var y=0;y<=L.H;y+=80){ ctx.moveTo(0,y); ctx.lineTo(L.W,y); }
+  ctx.stroke();
+
+  /* thảm dẫn từ chỗ xuất hiện lên cổng */
+  ctx.fillStyle='rgba(185,139,232,.05)';
+  ctx.fillRect(L.gate.x-70, L.gate.y-40, 140, 300);
+
+  /* tường */
+  L.walls.forEach(function(w){
+    ctx.fillStyle='#271F33'; ctx.fillRect(w.x,w.y,w.w,w.h);
+    ctx.strokeStyle='#40314C'; ctx.lineWidth=1; ctx.strokeRect(w.x+.5,w.y+.5,w.w-1,w.h-1);
+  });
+
+  /* cổng dịch chuyển */
+  var g=L.gate, pulse=.55+.45*Math.sin(now/220);
+  ctx.globalAlpha=pulse; ctx.strokeStyle='#B98BE8'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(g.x,g.y,g.r,0,7); ctx.stroke();
+  ctx.globalAlpha=.16; ctx.fillStyle='#B98BE8';
+  ctx.beginPath(); ctx.arc(g.x,g.y,g.r,0,7); ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.font='8px "JetBrains Mono", monospace'; ctx.fillStyle='#B98BE8'; ctx.textAlign='center';
+  ctx.fillText('CỔNG DỊCH CHUYỂN',g.x,g.y-g.r-10);
+  ctx.fillText('RA MAP 1',g.x,g.y-g.r-1);
+
+  /* NPC — bệ đứng + ký hiệu + tên */
+  L.npcs.forEach(function(n){
+    var near = cur.me && cur.me.npc===n.id;
+    ctx.fillStyle='rgba(0,0,0,.34)';
+    ctx.beginPath(); ctx.ellipse(n.x,n.y+13,14,5,0,0,7); ctx.fill();
+    ctx.strokeStyle=near?'#C9A961':'#40314C'; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.ellipse(n.x,n.y+13,17,6,0,0,7); ctx.stroke();
+    /* thân NPC: khối đơn giản, không dùng sprite chiến đấu */
+    ctx.fillStyle=near?'#C9A961':'#6B5C7A';
+    ctx.fillRect(n.x-7,n.y-10,14,22);
+    ctx.fillStyle='#E8C0A0'; ctx.fillRect(n.x-5,n.y-20,10,10);
+    ctx.font='13px serif'; ctx.fillStyle=near?'#FFE9A8':'#B9A8C8'; ctx.textAlign='center';
+    ctx.fillText(n.g,n.x,n.y-24);
+    ctx.font='8px "Be Vietnam Pro", sans-serif'; ctx.fillStyle=near?'#F0E9F4':'#9E90AB';
+    ctx.fillText(n.nm,n.x,n.y+30);
+    ctx.font='7px "JetBrains Mono", monospace'; ctx.fillStyle='#70647B';
+    ctx.fillText(n.role.toUpperCase(),n.x,n.y+40);
+  });
 }
 
 function drawGround(){

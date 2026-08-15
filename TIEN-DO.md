@@ -38,6 +38,29 @@ Trên Windows có thể double-click `start.bat`.
 - `skinOf(p)` ưu tiên `p.br` (nhánh) nếu server gửi, chưa có thì chia theo `p.s % 3` để mỗi slot một dáng. **Khi làm hệ nhánh cho map1, chỉ cần broadcast thêm trường `br` là ngoại hình tự đổi.**
 - `map1-server.js` không sửa dòng nào.
 
+### Sảnh thành một map đi lại được
+Trước đây "sảnh" chỉ là cái form trên màn intro. Giờ là map thật 1200×820, `ROOM.ph === 'lobby'` có `stepLobby()` riêng: di chuyển + phát hiện NPC gần + phát hiện đứng trong cổng. **Không quái, không đạn, không đánh thường, không kỹ năng, không lướt** — client chặn ở khâu gửi input, server chỉ chạy nhánh sảnh.
+
+- 3 NPC (`class` / `sign` / `shop`) + 1 cổng; bấm `F` khi đứng trong bán kính 62px.
+- Lệnh mới: `setcls`, `setsign`, `buyw`, `enter`. Tất cả chỉ nhận khi `ph === 'lobby'`.
+- Đổi class thì **reset cây kỹ năng** (`nodes = [cls_root]`, `pts = 0`) và tháo vũ khí không hợp class — cây và vũ khí đều gắn theo class.
+- `WEAPONS`: 2 món/class, mua bằng token, `applyWeapon()` chạy trong `recompute()`.
+- **Ví token meta** (`p.metaToken`) tách khỏi token trong ván (`p.token`). `finish()` chỉ cộng token của người **đã thoát** vào ví.
+- `again` không reload trang nữa mà đưa `ph` về `'lobby'`, gọi `resetWorld()`, `toLobby()` cho người thật và **xoá hết bot** — class/cung/vũ khí/ví giữ nguyên.
+- Snapshot ở sảnh gửi mảng rỗng cho `E/R/L/C/M/G/MT/PO` để client không vẽ nhầm quái và rương của ván trước.
+- Client: `inLobby()` đổi `worldW()/worldH()` cho camera, `drawLobby()` vẽ nền/tường/NPC/cổng, HUD rút gọn (giấu máu/mana/minimap/ô kỹ năng/cột blessing).
+
+Hai lỗi bắt được lúc chạy thử:
+1. Client vẫn gửi `{t:'ready',v:true}` ngay khi `joined` — tàn dư luồng cũ, làm ván bắt đầu luôn không kịp vào sảnh.
+2. Bảng kết quả không tự đóng khi về sảnh (trước kia `again` reload trang nên không lộ).
+
+⚠ Lúc test: pane trình duyệt ẩn thì `requestAnimationFrame` bị tạm dừng nên `syncHud()` không chạy — tưởng HUD hỏng. Vòng gửi input dùng `setInterval` nên vẫn chạy. Muốn kiểm HUD lúc pane ẩn thì gọi tay `syncHud()`.
+
+### Hồi máu không còn chữa cho kẻ địch
+Map 1 là hỗn chiến tự do, **chưa có hệ team**, nhưng R của Nhà sư và 4 node cây kỹ năng vẫn duyệt `ROOM.players` như thể ai cũng là đồng đội — chữa và tiếp khiên cho cả người đang đánh mình.
+
+Gom về một hàm `alliesOf(p)` hiện trả về `[]`; khi làm hệ team chỉ sửa đúng hàm đó. Chỗ đã đổi: R Nhà sư (bù lại tự hồi 45 → 60), Hào Quang (hưởng trọn phần của mình thay vì một nửa), Bất Hoại Thành, Hộ Vệ, Phục Sinh/Hồi Sinh Nhanh (áp cho chính mình), và cả bị động Sư Tử của blessing (trước đây kẻ địch đứng gần cũng tính là "đồng đội quanh 300px").
+
 ### Bot tự tìm đường + chỉnh nhịp map
 - **Tìm đường**: tường là hình chữ nhật thẳng trục và không đổi, nên dựng sẵn đồ thị tầm nhìn — 4 góc mỗi tường đẩy ra 26px làm nút (32 nút), `NAVLINK` tính 1 lần lúc khởi động. Lúc chơi: `losClear()` kiểm đường thẳng trước, thông thì đi thẳng (trường hợp thường, không tốn gì); bị chắn mới chạy Dijkstra trên 32 nút — đo được **0.10 ms/lần**.
 - Bot giờ **ngắm mục tiêu nhưng đi theo waypoint** (trước đây dùng chung một góc). Thêm phát hiện kẹt: nhích chưa tới 6px trong 0.5 giây thì tính lại đường, kẹt lần hai thì lách ngang 1.35 rad.

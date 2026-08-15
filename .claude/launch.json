@@ -4,8 +4,11 @@
     {
       "name": "map1",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["map1-server.js"],
-      "port": 8081
+      "runtimeArgs": [
+        "map1-server.js"
+      ],
+      "port": 8081,
+      "autoPort": true
     }
   ]
 }

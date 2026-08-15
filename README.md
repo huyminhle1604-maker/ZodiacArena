@@ -68,7 +68,35 @@ Cổng `8080` (hoặc `start.bat`). Chạy song song với map 1 được vì kh
 | `Shift` | **Lướt** — 140px, hồi 4 giây, có 0.15s bất tử |
 | `F` | Mở merchant (khi đứng cạnh) |
 | `T` | Cây kỹ năng |
-| `Esc` | Đóng merchant · đóng cây kỹ năng |
+| `F` (ở sảnh) | Nói chuyện NPC · bước vào cổng dịch chuyển |
+| `Esc` | Đóng merchant · cây kỹ năng · bảng NPC |
+
+---
+
+## Sảnh
+
+Vào game là ra **sảnh** — một map đi lại được, **không có chiến đấu** (không quái, không đánh thường, không kỹ năng, không lướt). Trong sảnh có đúng bốn thứ:
+
+| Nơi | Việc |
+|---|---|
+| **Giáo Trưởng** | Đổi class. Đổi là xoá sạch cây kỹ năng, vũ khí không hợp class cũng bị tháo |
+| **Chiêm Tinh Sư** | Chọn cung hoàng đạo — vào thẳng slot Bị Động |
+| **Thợ Rèn** | Cửa hàng vũ khí, mua bằng **token** |
+| **Cổng dịch chuyển** | Xác nhận class · cung · vũ khí rồi ra map 1 |
+
+Đứng gần thì nhấn `F` để nói chuyện. Chưa chọn cung thì cổng không cho đi.
+
+Hết ván bấm **Ván mới** là về sảnh — class, cung, vũ khí và **ví token** giữ nguyên; cây kỹ năng và blessing nhặt trong ván thì không.
+
+### Vũ khí (meta)
+
+Mua một lần bằng token, giữ vĩnh viễn, mỗi class một dòng riêng:
+
+| Class | Vũ khí | Giá | Hiệu ứng |
+|---|---|---|---|
+| Kiếm sĩ | Trường Kiếm Thép · Đại Kiếm Hắc Diện | 4 · 12 | +3 ATK · +7 ATK, +10 HP |
+| Xạ thủ | Cung Gỗ Thuỷ Tùng · Cung Sừng Bạc | 4 · 12 | +3 ATK · +6 ATK, +4% chí mạng |
+| Nhà sư | Tích Trượng Đồng · Tích Trượng Ngọc | 4 · 12 | +3 ATK · +5 ATK, +15 mana |
 
 ---
 
@@ -80,6 +108,8 @@ Map **2400×1600** có camera bám nhân vật, 6 người, **10 phút + 30 giâ
 farm quái → xu → rương → blessing → merchant → world boss
           → hết giờ → mưa thiên thạch + 5 cổng → thoát hoặc mất trắng
 ```
+
+Quái đánh chậm (cận chiến 1.4 giây/đòn, tầm xa 2.4 giây/đòn) nên còn kịp né và kéo.
 
 **Địa hình cố định mọi ván** (dễ so sánh khi test): 12 bãi quái · 16 chỗ rương · 3 merchant · 8 bức tường · boss ở chính giữa.
 
@@ -177,7 +207,7 @@ Chạm cổng = **thoát, giữ token**. Không kịp hoặc chết = **mất tr
 ### Xu vs token
 
 - **Xu** — tiêu trong ván, để mua ở merchant. Quái rơi xu. Chết thì rơi lại 40%.
-- **Token** — phần thưởng mang ra khỏi ván (theo thiết kế là để mua đồ ở lobby). Rương, boss và **giết người (+1)** cho token.
+- **Token** — phần thưởng mang ra khỏi ván, **chỉ giữ được nếu thoát qua cổng**. Về sảnh thì cộng vào ví meta để mua vũ khí ở Thợ Rèn. Rương, boss và **giết người (+1)** cho token.
 
 > Theo thiết kế 3 map, thắng ở map 3 sẽ **nhân đôi toàn bộ token cả ván**. Prototype chỉ có map 1 nên **chưa áp hệ số x2** — con số cuối ván là con số thô.
 

@@ -279,6 +279,94 @@ function canAlloc(p, id) {
   return true;
 }
 
+
+/* ============================ SẢNH ============================ */
+/* Sảnh là một MAP đi lại được, KHÔNG có chiến đấu: không quái, không đạn,
+ * không đánh thường, không kỹ năng, không lướt. Chỉ có 3 NPC và 1 cổng —
+ * đúng phần mô tả trong game_idea.txt. */
+const LOBBY = {
+  W: 1200, H: 820,
+  spawn: { x: 600, y: 690 },
+  walls: [
+    { x: 0, y: 0, w: 1200, h: 24 }, { x: 0, y: 796, w: 1200, h: 24 },
+    { x: 0, y: 0, w: 24, h: 820 }, { x: 1176, y: 0, w: 24, h: 820 },
+    /* hai bệ đá hai bên bàn thờ giữa sảnh */
+    { x: 330, y: 250, w: 40, h: 150 }, { x: 830, y: 250, w: 40, h: 150 }
+  ],
+  npcs: [
+    { id: 'class', x: 250, y: 470, nm: 'Giáo Trưởng', role: 'Đổi class', g: '⚔' },
+    { id: 'sign', x: 600, y: 300, nm: 'Chiêm Tinh Sư', role: 'Chọn cung hoàng đạo', g: '✦' },
+    { id: 'shop', x: 950, y: 470, nm: 'Thợ Rèn', role: 'Cửa hàng vũ khí', g: '🔨' }
+  ],
+  gate: { x: 600, y: 600, r: 54 }
+};
+const NPC_R = 62;          // khoảng cách bấm F được
+
+/* Vũ khí mua bằng token — meta, giữ qua các ván. Mỗi class một dòng riêng. */
+const WEAPONS = [
+  { id: 'w_sw1', cls: 'sw', nm: 'Trường Kiếm Thép', d: '+3 sát thương', cost: 4, atk: 3 },
+  { id: 'w_sw2', cls: 'sw', nm: 'Đại Kiếm Hắc Diện', d: '+7 sát thương, +10 HP', cost: 12, atk: 7, hp: 10 },
+  { id: 'w_ar1', cls: 'ar', nm: 'Cung Gỗ Thuỷ Tùng', d: '+3 sát thương', cost: 4, atk: 3 },
+  { id: 'w_ar2', cls: 'ar', nm: 'Cung Sừng Bạc', d: '+6 sát thương, +4% chí mạng', cost: 12, atk: 6, crit: 0.04 },
+  { id: 'w_mk1', cls: 'mk', nm: 'Tích Trượng Đồng', d: '+3 sát thương', cost: 4, atk: 3 },
+  { id: 'w_mk2', cls: 'mk', nm: 'Tích Trượng Ngọc', d: '+5 sát thương, +15 mana', cost: 12, atk: 5, mp: 15 }
+];
+const WEAPON_BY_ID = {};
+for (const w of WEAPONS) WEAPON_BY_ID[w.id] = w;
+
+function inLobbyWall(x, y, pad) {
+  pad = pad || 0;
+  for (const w of LOBBY.walls) {
+    if (x > w.x - pad && x < w.x + w.w + pad && y > w.y - pad && y < w.y + w.h + pad) return true;
+  }
+  return false;
+}
+
+/* Đưa người chơi về sảnh — gọi khi vừa vào và sau mỗi ván. */
+function toLobby(p) {
+  p.x = LOBBY.spawn.x + rnd(-70, 70);
+  p.y = LOBBY.spawn.y + rnd(-40, 40);
+  p.ready = false; p.alive = true; p.escaped = false;
+  p.hp = p.mhp; p.mp = p.mmp; p.shield = 0;
+  p.nearNpc = null; p.atGate = false;
+  p.in = { up: 0, dn: 0, lf: 0, rt: 0, aim: 0, fire: 0, use: 0 };
+}
+
+function stepLobby() {
+  const R = ROOM;
+  for (const p of R.players) {
+    if (p.bot) continue;                     // bot không hiện ở sảnh
+    const mx = p.in.rt - p.in.lf, my = p.in.dn - p.in.up;
+    if (mx || my) {
+      const l = Math.hypot(mx, my) || 1;
+      const sp = 3.2;
+      const nx = clamp(p.x + (mx / l) * sp * 2, 16, LOBBY.W - 16);
+      const ny = clamp(p.y + (my / l) * sp * 2, 16, LOBBY.H - 16);
+      if (!inLobbyWall(nx, p.y, 12)) p.x = nx;
+      if (!inLobbyWall(p.x, ny, 12)) p.y = ny;
+    }
+    p.aim = p.in.aim;
+
+    let near = null, nd = NPC_R;
+    for (const n of LOBBY.npcs) { const d = dist(n, p); if (d < nd) { nd = d; near = n.id; } }
+    p.nearNpc = near;
+    p.atGate = dist(LOBBY.gate, p) < LOBBY.gate.r;
+  }
+
+  const humans = R.players.filter(p => !p.bot);
+  if (humans.length && humans.every(p => p.ready)) startMatch();
+}
+
+/* Áp vũ khí đã mua vào chỉ số — gọi trong recompute. */
+function applyWeapon(p) {
+  const w = WEAPON_BY_ID[p.weapon];
+  if (!w || w.cls !== p.cls) return;
+  p.atk += w.atk || 0;
+  p.mhp += w.hp || 0;
+  p.mmp += w.mp || 0;
+  p.critC += w.crit || 0;
+}
+
 /* ============================ QUÁI ============================ */
 const ETYPES = {
   slime: { hp: 34, spd: 1.05, dmg: 7, r: 13, xp: 6, coin: 2, big: false },
@@ -477,6 +565,8 @@ function makePlayer(ws, nm, cls, slot, bot, sign) {
     xu: 0, token: 0,
     sign: sg,
     bl: { atk: null, e: null, r: null, pas: sg, dash: null },
+    /* meta — giữ qua các ván, không reset khi startMatch */
+    metaToken: 0, weapon: null, nearNpc: null, atGate: false,
     /* cây kỹ năng */
     pts: 0, nodes: [cls + '_root'], fx: {}, br: null,
     dr: 0, ls: 0, reg: 0, mreg: 0, rateM: 1, rngM: 1, projN: 1,
@@ -513,6 +603,7 @@ function recompute(p) {
   /* cây kỹ năng: dựng lại từ base rồi duyệt node */
   p.fx = {}; p.br = null;
   p.dr = 0; p.ls = 0; p.reg = 0; p.mreg = 0; p.rateM = 1; p.rngM = 1; p.projN = 1;
+  applyWeapon(p);                                   // vũ khí mua ở sảnh
   for (const id of p.nodes || []) applyFx(p, id);
   for (const id of p.nodes || []) { const m = META[id]; if (m && m.br && m.t === 3) p.br = m.br; }
   p.dr = Math.min(0.6, p.dr);
@@ -601,7 +692,7 @@ function dmgTo(t, base, opt, src) {
     /* --- bị động --- */
     if (src.bl.pas === 'ari' && src.combatT > 0 && src.combatT < 5) d *= 1.25;
     if (src.bl.pas === 'leo') {
-      for (const q of ROOM.players) if (q !== src && q.alive && dist(q, src) < 300) { d *= 1.08; break; }
+      for (const q of alliesOf(src)) if (dist(q, src) < 300) { d *= 1.08; break; }
     }
     if (src.bl.pas === 'lib' && Math.abs(src.hp / src.mhp - src.mp / src.mmp) < 0.15) d *= 1.2;
 
@@ -641,8 +732,8 @@ function dmgTo(t, base, opt, src) {
     if (src && src.fx && src.fx.armorPen) dr *= 1 - src.fx.armorPen;
     if (dr > 0) d *= Math.max(0.25, 1 - dr);
     /* Hộ Vệ: đồng đội Vệ Binh gần đó gánh 25% */
-    for (const g of ROOM.players) {
-      if (g === t || !g.alive || !g.fx.guard || dist(g, t) > 220) continue;
+    for (const g of alliesOf(t)) {
+      if (!g.fx.guard || dist(g, t) > 220) continue;
       const share = d * g.fx.guard;
       d -= share;
       absorbTo(g, share);
@@ -698,6 +789,13 @@ function applyPoison(t, cap) {
 }
 
 /* Hộ Vệ dùng: đổ sát thương đã gánh sang người khác, khiên chịu trước. */
+/* Map 1 hiện là hỗn chiến tự do — CHƯA có hệ team, nên không ai là đồng đội.
+ * Mọi hiệu ứng hỗ trợ đi qua đây; khi làm hệ team (thiết kế 4 người/team)
+ * chỉ cần đổi đúng hàm này, không phải lần lại từng chỗ. */
+function alliesOf(p) {
+  return [];   // TODO: ROOM.players.filter(q => q !== p && q.alive && q.team === p.team)
+}
+
 function absorbTo(p, amount) {
   let d = Math.round(amount);
   if (d <= 0) return;
@@ -780,9 +878,11 @@ function onPlayerDown(p, src) {
     return;
   }
   /* Phục Sinh / Hồi Sinh Nhanh: nhà sư nhánh Trị Liệu rút ngắn thời gian chờ */
+  /* Chưa có team nên node hồi sinh áp cho chính người có nó */
   let fast = 1;
-  for (const q of ROOM.players) {
-    if (q === p || !q.alive) continue;
+  if (p.fx.resurrect) fast = 2.2;
+  else if (p.fx.fastRes) fast = 1.5;
+  for (const q of alliesOf(p)) {
     if (q.fx.resurrect) fast = Math.max(fast, 2.2);
     else if (q.fx.fastRes) fast = Math.max(fast, 1.5);
   }
@@ -1031,19 +1131,21 @@ function doR(p) {
     /* Chữa Lành — Hồi Sinh Nhanh (+20%), Suối Nguồn (×2, xoá độc, máu thừa thành khiên),
        Lá Chắn Sinh Mệnh (+20 khiên mỗi lần hồi) */
     const hm = (p.fx.healM || 1) * (p.fx.fountain ? 2 : 1);
-    const selfHeal = 45 * power * hm, mateHeal = 30 * power * hm;
+    /* Chưa có hệ team nên KHÔNG hồi máu cho người khác — vòng lặp cũ chữa
+       cho cả kẻ địch đứng gần. Bù lại lượng hồi bản thân tăng 45 -> 60. */
+    const selfHeal = 60 * power * hm;
     if (p.fx.fountain) { p.poisonT = 0; p.poison = 0; }
     const over = Math.max(0, p.hp + selfHeal - p.mhp);
     healP(p, selfHeal);
     if (p.fx.fountain && over > 0) { p.shield = Math.min(140, p.shield + over); p.shieldT = 8; }
     if (p.fx.healShield) { p.shield = Math.min(140, p.shield + p.fx.healShield); p.shieldT = 8; }
-    for (const q of ROOM.players) {
-      if (q === p || !q.alive || dist(q, p) > 220) continue;
-      healP(q, mateHeal);
+    for (const q of alliesOf(p)) {
+      if (dist(q, p) > 220) continue;
+      healP(q, 30 * power * hm);
       if (p.fx.fountain) { q.poisonT = 0; q.poison = 0; }
       if (p.fx.healShield) { q.shield = Math.min(140, q.shield + p.fx.healShield); q.shieldT = 8; }
     }
-    ev({ k: 'ring', x: p.x, y: p.y, r: 220, c: '#9dffb0' });
+    ev({ k: 'ring', x: p.x, y: p.y, r: 120, c: '#9dffb0' });
   }
   if (p.bl.r === 'lib') { const avg = (p.hp / p.mhp + p.mp / p.mmp) / 2; p.hp = p.mhp * avg; p.mp = p.mmp * avg; }
   if (p.bl.r === 'gem') p.echoR = 2;   // lặp lại sau 2 giây
@@ -1206,15 +1308,15 @@ function updatePlayer(p) {
   /* Bất Hoại Thành: tự hồi khiên tới 120, đồng đội quanh 120 cũng được */
   if (p.fx.bulwark) {
     if (p.shield < 120) { p.shield = Math.min(120, p.shield + 14 * DT); p.shieldT = 8; }
-    for (const q of ROOM.players) {
-      if (q === p || !q.alive || dist(q, p) > 120) continue;
+    for (const q of alliesOf(p)) {
+      if (dist(q, p) > 120) continue;
       if (q.shield < 60) { q.shield = Math.min(60, q.shield + 8 * DT); q.shieldT = 8; }
     }
   }
   /* Hào Quang: đồng đội trong 130 hồi máu mỗi giây */
   if (p.fx.auraHeal) {
-    for (const q of ROOM.players) if (q !== p && q.alive && dist(q, p) < 130) healP(q, p.fx.auraHeal * DT);
-    healP(p, p.fx.auraHeal * 0.5 * DT);
+    for (const q of alliesOf(p)) if (dist(q, p) < 130) healP(q, p.fx.auraHeal * DT);
+    healP(p, p.fx.auraHeal * DT);          // chưa có team -> hưởng trọn phần của mình
   }
 
   /* hồi phục */
@@ -1230,7 +1332,7 @@ function updatePlayer(p) {
 
   /* Sư Tử bị động: tốc chạy khi có đồng đội */
   let sp = p.spd * p.spdM;
-  if (p.bl.pas === 'leo') { for (const q of ROOM.players) if (q !== p && q.alive && dist(q, p) < 300) { sp *= 1.08; break; } }
+  if (p.bl.pas === 'leo') { for (const q of alliesOf(p)) if (dist(q, p) < 300) { sp *= 1.08; break; } }
   if (p.bl.atk === 'tau' && p.stackTau > 0) sp *= 1 - p.stackTau * 0.01;
   if (p.combo === 'tau') sp *= 1 - Math.min(10, p.stackTau) * 0.01;
   if (p.slow > 0) sp *= 0.6;
@@ -1465,7 +1567,7 @@ function updateEnemies() {
       if (!inWall(nx, e.y, 8)) e.x = clamp(nx, 20, MW - 20);
       if (!inWall(e.x, ny, 8)) e.y = clamp(ny, 20, MH - 20);
     } else if (e.cd <= 0) {
-      e.cd = e.ranged ? 1.6 : 0.85;
+      e.cd = e.ranged ? 2.4 : 1.4;      // quái đánh chậm lại (1.6/0.85 -> 2.4/1.4)
       let dmg = e.dmg * (e.buff === 'ari' ? 1.5 : 1) * (1 - (ROOM.weaken || 0));
       if (e.ranged) {
         ROOM.projs.push({ x: e.x, y: e.y, vx: Math.cos(a) * 6, vy: Math.sin(a) * 6, dmg, life: 2.2, own: -1, ty: 'eball', pierce: 0, hit: [], src: e, sx: e.x, sy: e.y });
@@ -1575,11 +1677,7 @@ function updateBot(p) {
 function step() {
   const R = ROOM;
 
-  if (R.ph === 'lobby') {
-    const humans = R.players.filter(p => !p.bot);
-    if (humans.length && humans.every(p => p.ready)) startMatch();
-    return;
-  }
+  if (R.ph === 'lobby') { stepLobby(); return; }
 
   if (R.ph === 'over') return;
 
@@ -1769,6 +1867,11 @@ function finish() {
       bl: Object.assign({}, p.bl), combo: p.combo
     };
   }).sort((a, b) => (b.escaped - a.escaped) || (b.token - a.token));
+  /* token chỉ giữ được nếu thoát qua cổng — cộng vào ví meta để tiêu ở sảnh */
+  for (const p of R.players) {
+    if (p.bot || !p.escaped) continue;
+    p.metaToken += p.token;
+  }
   ev({ k: 'toast', s: -1, m: 'Ván kết thúc.' });
 }
 
@@ -1817,7 +1920,10 @@ function snapshot(forSlot) {
     bl: (p === me || seeAll) ? p.bl : undefined
   }));
 
-  const E = R.enemies.map(e => ({
+  /* Ở sảnh không có gì để bắn cả — gửi mảng rỗng cho nhẹ và để client
+     không vẽ nhầm quái/rương của ván trước. */
+  const inLobby = R.ph === 'lobby';
+  const E = inLobby ? [] : R.enemies.map(e => ({
     i: e.id, x: Math.round(e.x), y: Math.round(e.y), ty: e.ty, r: e.r,
     hp: Math.max(0, Math.round(e.hp)), mhp: e.mhp, ps: e.poisonT > 0 ? 1 : 0,
     bf: e.buff || 0, bs: e.boss ? 1 : 0
@@ -1827,14 +1933,15 @@ function snapshot(forSlot) {
     t: 'state', ph: R.ph,
     tm: Math.max(0, Math.round(((R.ph === 'playing' ? MATCH_TIME : EXODUS_TIME) - R.t) * 10) / 10),
     P, E,
-    R: R.projs.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), ty: p.ty, a: Math.round(Math.atan2(p.vy, p.vx) * 100) / 100, o: p.own })),
-    L: R.loot.map(l => ({ i: l.id, x: Math.round(l.x), y: Math.round(l.y), ty: l.ty, sg: l.sign || 0, v: l.v || 0 })),
-    C: R.chests.map(c => ({ i: c.id, x: c.x, y: c.y, o: c.open ? 1 : 0 })),
-    M: R.merchantOpen < 0 ? [] : [{ x: MERCHANTS[R.merchantOpen].x, y: MERCHANTS[R.merchantOpen].y, o: 1 }],
-    G: R.gates.map(g => ({ x: g.x, y: g.y, r: g.r })),
-    MT: R.meteors.filter(m => !m.done).map(m => ({ x: m.x, y: m.y, r: m.r, t: Math.round(m.t * 100) / 100 })),
-    PO: R.pools.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), r: p.r, ty: p.ty })),
+    R: inLobby ? [] : R.projs.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), ty: p.ty, a: Math.round(Math.atan2(p.vy, p.vx) * 100) / 100, o: p.own })),
+    L: inLobby ? [] : R.loot.map(l => ({ i: l.id, x: Math.round(l.x), y: Math.round(l.y), ty: l.ty, sg: l.sign || 0, v: l.v || 0 })),
+    C: inLobby ? [] : R.chests.map(c => ({ i: c.id, x: c.x, y: c.y, o: c.open ? 1 : 0 })),
+    M: (inLobby || R.merchantOpen < 0) ? [] : [{ x: MERCHANTS[R.merchantOpen].x, y: MERCHANTS[R.merchantOpen].y, o: 1 }],
+    G: inLobby ? [] : R.gates.map(g => ({ x: g.x, y: g.y, r: g.r })),
+    MT: inLobby ? [] : R.meteors.filter(m => !m.done).map(m => ({ x: m.x, y: m.y, r: m.r, t: Math.round(m.t * 100) / 100 })),
+    PO: inLobby ? [] : R.pools.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), r: p.r, ty: p.ty })),
     boss: R.bossUp ? 1 : (R.bossDead ? 2 : 0),
+    lobby: R.ph === 'lobby' ? 1 : 0,
     bossIn: R.ph === 'playing' && !R.bossUp && !R.bossDead ? Math.max(0, Math.round(BOSS_AT - R.t)) : -1,
     ev: R.ev
   };
@@ -1846,6 +1953,8 @@ function snapshot(forSlot) {
       dc: me.dashChg, dm: me.dashMax, dcd: Math.round(me.dashCd * 10) / 10,
       bl: me.bl, combo: me.combo, prog: Math.round(me.openProg / 1.2 * 100),
       nd: me.nodes, pts: me.pts, br: me.br,
+      sign: me.sign, cls: me.cls, weapon: me.weapon, mtoken: me.metaToken,
+      npc: me.nearNpc, gate: me.atGate ? 1 : 0,
       nc: me.nearChest, nm2: me.nearMerchant, ready: me.ready ? 1 : 0,
       stock: R.stock,
       bought: R.stock.filter(id => me.bought && me.bought[R.merchantRot + ':' + id])
@@ -1894,7 +2003,7 @@ server.on('upgrade', (req, sock) => {
   sock.on('error', () => onClose(ws));
   send(ws, JSON.stringify({
     t: 'welcome', maxp: MAXP,
-    cfg: { MW, MH, MATCH_TIME, EXODUS_TIME, WALLS, SIGNS, SIGN_NM, SIGN_THEME, SLOTS, SLOT_NM, BLESS, COMBO_NM, SHOP, CLASSES, MINLV, META }
+    cfg: { MW, MH, MATCH_TIME, EXODUS_TIME, WALLS, SIGNS, SIGN_NM, SIGN_THEME, SLOTS, SLOT_NM, BLESS, COMBO_NM, SHOP, CLASSES, MINLV, META, LOBBY, WEAPONS }
   }));
 });
 
@@ -1961,9 +2070,9 @@ function handleMsg(ws, m) {
     let slot = 0; while (used.includes(slot)) slot++;
     const cls = CLASSES[m.cls] ? m.cls : 'sw';
     const p = makePlayer(ws, m.nm, cls, slot, false, m.sg);
-    p.ready = false;
     ws.player = p;
     ROOM.players.push(p);
+    toLobby(p);
     send(ws, JSON.stringify({ t: 'joined', slot }));
     return;
   }
@@ -1980,6 +2089,35 @@ function handleMsg(ws, m) {
     case 'sk': useSkill(p, m.s === 'R' ? 'R' : 'E'); break;
     case 'dash': doDash(p); break;
     case 'ready': p.ready = !!m.v; break;
+
+    /* --- lệnh chỉ dùng trong sảnh --- */
+    case 'setcls':
+      if (ROOM.ph !== 'lobby' || !CLASSES[m.v]) break;
+      p.cls = m.v;
+      p.mxE = ESKILL[p.cls].cd; p.mxR = RSKILL[p.cls].cd;
+      p.nodes = [p.cls + '_root']; p.pts = 0;      // cây gắn theo class
+      if (WEAPON_BY_ID[p.weapon] && WEAPON_BY_ID[p.weapon].cls !== p.cls) p.weapon = null;
+      recompute(p); p.hp = p.mhp; p.mp = p.mmp;
+      break;
+    case 'setsign':
+      if (ROOM.ph !== 'lobby' || !SIGNS.includes(m.v)) break;
+      p.sign = m.v; p.bl.pas = m.v;
+      recompute(p);
+      break;
+    case 'buyw': {
+      if (ROOM.ph !== 'lobby') break;
+      const w = WEAPON_BY_ID[m.id];
+      if (!w || w.cls !== p.cls) break;
+      if (p.weapon === w.id) break;
+      if (p.metaToken < w.cost) break;
+      p.metaToken -= w.cost; p.weapon = w.id;
+      recompute(p); p.hp = p.mhp;
+      break;
+    }
+    case 'enter':
+      if (ROOM.ph !== 'lobby' || !p.sign) break;
+      p.ready = true;
+      break;
     case 'node': {
       const id = String(m.id || '');
       if (!canAlloc(p, id)) break;
@@ -1997,7 +2135,14 @@ function handleMsg(ws, m) {
     case 'skip': p.pending = null; break;
     case 'buy': buy(p, m.id, m.slot); break;
     case 'again':
-      if (ROOM.ph === 'over') { ROOM = makeRoom(); ws.player = null; send(ws, JSON.stringify({ t: 'reset' })); }
+      /* Về SẢNH chứ không reload: token đã thoát được cộng vào ví meta,
+         class / cung / vũ khí giữ nguyên để đi ván tiếp. */
+      if (ROOM.ph === 'over') {
+        ROOM.ph = 'lobby'; ROOM.t = 0; ROOM.results = null;
+        resetWorld();
+        for (const q of ROOM.players) { if (!q.bot) toLobby(q); }
+        ROOM.players = ROOM.players.filter(q => !q.bot);
+      }
       break;
   }
 }
