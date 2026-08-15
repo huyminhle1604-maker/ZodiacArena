@@ -75,16 +75,15 @@ Cổng `8080` (hoặc `start.bat`). Chạy song song với map 1 được vì kh
 
 ## Sảnh
 
-Vào game là ra **sảnh** — một map đi lại được, **không có chiến đấu** (không quái, không đánh thường, không kỹ năng, không lướt). Trong sảnh có đúng bốn thứ:
+Vào game là ra **sảnh** — một map đi lại được, **không có chiến đấu** (không quái, không đánh thường, không kỹ năng, không lướt). Trong sảnh có đúng ba thứ:
 
 | Nơi | Việc |
 |---|---|
 | **Giáo Trưởng** | Đổi class. Đổi là xoá sạch cây kỹ năng, vũ khí không hợp class cũng bị tháo |
-| **Chiêm Tinh Sư** | Chọn cung hoàng đạo — vào thẳng slot Bị Động |
 | **Thợ Rèn** | Cửa hàng vũ khí, mua bằng **token** |
-| **Cổng dịch chuyển** | Xác nhận class · cung · vũ khí rồi ra map 1 |
+| **Cổng dịch chuyển** | **Chọn cung hoàng đạo** rồi ra map 1 |
 
-Đứng gần thì nhấn `F` để nói chuyện. Chưa chọn cung thì cổng không cho đi.
+Đứng gần thì nhấn `F`. Chọn cung không có NPC riêng — bước vào cổng là hiện bảng chọn luôn, vì đó đúng là lúc cần quyết định. Chưa chọn cung thì chưa đi được.
 
 Hết ván bấm **Ván mới** là về sảnh — class, cung, vũ khí và **ví token** giữ nguyên; cây kỹ năng và blessing nhặt trong ván thì không.
 
@@ -173,11 +172,11 @@ Ba chỗ khác arena cũ, vì map 1 có sẵn E/R từ cấp 1 và blessing slot
 
 Chạy `node test-tree.js` để kiểm logic cây (gate theo cấp, thứ tự node, loại trừ nhánh, cộng dồn chỉ số).
 
-### Chọn cung ở màn vào game
+### Chọn cung ở cổng dịch chuyển
 
-Trước khi vào map, người chơi chọn **1 trong 12 cung** — cung đó vào thẳng slot **Bị Động**, nên bạn bắt đầu ván với sẵn một blessing thay vì tay trắng. Màn chọn hiện luôn mô tả hiệu ứng bị động của từng cung (lấy trực tiếp từ server, không chép lại ở client).
+Bước vào cổng là hiện bảng chọn **1 trong 12 cung** — cung đó vào thẳng slot **Bị Động**, nên bạn bắt đầu ván với sẵn một blessing thay vì tay trắng. Bảng hiện luôn mô tả hiệu ứng bị động của từng cung (lấy trực tiếp từ server, không chép lại ở client).
 
-Cung chọn ở sảnh **được giữ qua các ván mới**. Nhặt blessing khác gắn vào slot `pas` thì đè mất — giống mọi slot khác. Bot cũng được bốc một cung ngẫu nhiên.
+Cung đã chọn **được giữ qua các ván mới**. Nhặt blessing khác gắn vào slot `pas` thì đè mất — giống mọi slot khác. Bot cũng được bốc một cung ngẫu nhiên.
 
 Nguồn blessing: rương (45% cơ hội) và merchant. Blessing của người khác **không công khai** — trừ khi bạn gắn Xử Nữ vào `pas`.
 

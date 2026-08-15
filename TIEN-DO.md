@@ -41,7 +41,9 @@ Trên Windows có thể double-click `start.bat`.
 ### Sảnh thành một map đi lại được
 Trước đây "sảnh" chỉ là cái form trên màn intro. Giờ là map thật 1200×820, `ROOM.ph === 'lobby'` có `stepLobby()` riêng: di chuyển + phát hiện NPC gần + phát hiện đứng trong cổng. **Không quái, không đạn, không đánh thường, không kỹ năng, không lướt** — client chặn ở khâu gửi input, server chỉ chạy nhánh sảnh.
 
-- 3 NPC (`class` / `sign` / `shop`) + 1 cổng; bấm `F` khi đứng trong bán kính 62px.
+- 2 NPC (`class` / `shop`) + 1 cổng; bấm `F` khi đứng trong bán kính 62px. **Chọn cung không có NPC riêng** — bảng chọn nằm trong hộp của cổng, vì bước vào cổng mới đúng là lúc phải quyết định.
+
+⚠ Lỗi đã sửa: nhánh chặn chiến đấu ở sảnh (`if(inLobby()) return;`) đặt **trước** nhánh xử lý phím `F`, nên `F` không bao giờ chạy tới — không nói chuyện được với NPC nào. Giờ gom cả `F` và `Esc` của sảnh vào một khối đặt trước cái return đó.
 - Lệnh mới: `setcls`, `setsign`, `buyw`, `enter`. Tất cả chỉ nhận khi `ph === 'lobby'`.
 - Đổi class thì **reset cây kỹ năng** (`nodes = [cls_root]`, `pts = 0`) và tháo vũ khí không hợp class — cây và vũ khí đều gắn theo class.
 - `WEAPONS`: 2 món/class, mua bằng token, `applyWeapon()` chạy trong `recompute()`.

@@ -639,19 +639,25 @@ addEventListener('keydown',function(e){
   var k=e.key.toLowerCase();
   keys[k]=1;
   if(!joined) return;
-  if(inLobby()) return;                 // sảnh không có chiến đấu
+
+  /* Sảnh: chỉ có F (nói chuyện / vào cổng) và Esc. Phải xử lý TRƯỚC cái
+     return chặn chiến đấu bên dưới, không thì F không bao giờ tới nơi. */
+  if(inLobby()){
+    if(k==='f'){
+      if(npcOpen) closeNpc();
+      else if(cur&&cur.me&&cur.me.npc) openNpc(cur.me.npc);
+      else if(cur&&cur.me&&cur.me.gate) openNpc('gate');
+    }
+    if(e.key==='Escape'&&npcOpen) closeNpc();
+    return;
+  }
+
   if(k==='e') sendMsg({t:'sk',s:'E'});
   if(k==='r') sendMsg({t:'sk',s:'R'});
   if(e.key==='Shift') sendMsg({t:'dash'});
   if(k==='t'){
     if(treeOpen) closeTree();
     else if(cur&&cur.me) openTree();
-  }
-  if(k==='f'&&inLobby()){
-    if(npcOpen) closeNpc();
-    else if(cur.me&&cur.me.npc) openNpc(cur.me.npc);
-    else if(cur.me&&cur.me.gate) openNpc('gate');
-    return;
   }
   if(k==='f'){
     if(shopOpen) closeShop();
@@ -816,22 +822,6 @@ function renderNpc(){
     h+='</div><div class="mrow"><button class="ghost" id="closeNpc">Rời đi (F / Esc)</button></div></div>';
   }
 
-  if(npcOpen==='sign'){
-    h='<div class="mbox tick"><div class="mhead"><div class="eyebrow">Chiêm Tinh Sư</div>'+
-      '<h2>Chọn cung hoàng đạo</h2></div>'+
-      '<p class="note">Cung bạn chọn vào thẳng slot <b style="color:var(--ink)">Bị Động</b>, nên vào map là đã có sẵn một blessing.</p>'+
-      '<div class="sign-grid">';
-    CFG.SIGNS.forEach(function(sg){
-      h+='<button class="sgn'+(M.sign===sg?' on':'')+'" data-sign="'+sg+'">'+
-         '<b>'+SIGN_GLYPH[sg]+'</b><span>'+CFG.SIGN_NM[sg]+'</span></button>';
-    });
-    h+='</div>';
-    if(M.sign) h+='<div class="signinfo on"><b>'+SIGN_GLYPH[M.sign]+' '+CFG.SIGN_NM[M.sign]+' · '+CFG.SIGN_THEME[M.sign]+'</b>'+
-                  '<i>Bị động: '+CFG.BLESS[M.sign].pas+'</i></div>';
-    else h+='<div class="signinfo">Chưa chọn cung nào — cổng dịch chuyển sẽ không cho đi.</div>';
-    h+='<div class="mrow"><button class="ghost" id="closeNpc">Rời đi (F / Esc)</button></div></div>';
-  }
-
   if(npcOpen==='shop'){
     var list=CFG.WEAPONS.filter(function(w){return w.cls===M.cls});
     h='<div class="mbox tick"><div class="mhead"><div class="eyebrow">Thợ Rèn</div>'+
@@ -850,19 +840,29 @@ function renderNpc(){
 
   if(npcOpen==='gate'){
     var ready=!!M.sign;
-    h='<div class="mbox tick"><div class="mhead"><div class="eyebrow">Cổng dịch chuyển</div>'+
-      '<h2>Ra map 1?</h2></div>';
-    h+='<div class="rtab" style="grid-template-columns:1fr 2fr">'+
-       '<div class="h">Class</div><div class="h">Cung · bị động</div>'+
+    h='<div class="mbox tick"><div class="mhead"><div class="eyebrow">Cổng dịch chuyển · ra map 1</div>'+
+      '<h2>'+(ready?'Sẵn sàng đi':'Chọn cung hoàng đạo')+'</h2></div>';
+
+    /* hành trang mang theo */
+    h+='<div class="rtab" style="grid-template-columns:1fr 1.4fr .8fr">'+
+       '<div class="h">Class</div><div class="h">Vũ khí</div><div class="h">Token</div>'+
        '<div class="c">'+CFG.CLASSES[M.cls].nm+'</div>'+
-       '<div class="c">'+(M.sign?SIGN_GLYPH[M.sign]+' '+CFG.SIGN_NM[M.sign]:'<span style="color:var(--danger)">chưa chọn</span>')+'</div>'+
-       '<div class="h">Vũ khí</div><div class="h">Token mang theo</div>'+
        '<div class="c">'+(M.weapon?CFG.WEAPONS.filter(function(w){return w.id===M.weapon})[0].nm:'tay không')+'</div>'+
        '<div class="c n tk">'+M.mtoken+'</div></div>';
-    h+='<p class="note">'+(ready
-        ? 'Mười phút săn đồ. Hết giờ là mưa thiên thạch và năm cổng thoát — tới được cổng thì giữ token, không kịp thì mất trắng.'
-        : '<b style="color:var(--danger)">Phải gặp Chiêm Tinh Sư chọn cung trước đã.</b>')+'</p>';
-    h+='<div class="mfoot"><span class="fn">Cây kỹ năng và blessing nhặt trong ván không mang về sảnh.</span>'+
+
+    /* chọn cung ngay tại cổng — không có NPC riêng nữa */
+    h+='<p class="note">Cung bạn chọn vào thẳng slot <b style="color:var(--ink)">Bị Động</b>, nên vào map là đã có sẵn một blessing.</p>';
+    h+='<div class="sign-grid">';
+    CFG.SIGNS.forEach(function(sg){
+      h+='<button class="sgn'+(M.sign===sg?' on':'')+'" data-sign="'+sg+'">'+
+         '<b>'+SIGN_GLYPH[sg]+'</b><span>'+CFG.SIGN_NM[sg]+'</span></button>';
+    });
+    h+='</div>';
+    if(ready) h+='<div class="signinfo on"><b>'+SIGN_GLYPH[M.sign]+' '+CFG.SIGN_NM[M.sign]+' · '+CFG.SIGN_THEME[M.sign]+'</b>'+
+                 '<i>Bị động: '+CFG.BLESS[M.sign].pas+'</i></div>';
+    else h+='<div class="signinfo">Chọn một cung để xem hiệu ứng bị động — chưa chọn thì chưa đi được.</div>';
+
+    h+='<div class="mfoot"><span class="fn">Mười phút săn đồ. Hết giờ là mưa thiên thạch và năm cổng thoát — tới được cổng thì giữ token, không kịp thì mất trắng.</span>'+
        (ready?'<button class="go" id="enterBtn">Vào map 1</button>'
              :'<button class="ghost" id="closeNpc">Quay lại</button>')+'</div></div>';
   }

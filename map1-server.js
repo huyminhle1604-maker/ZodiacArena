@@ -290,15 +290,16 @@ const LOBBY = {
   walls: [
     { x: 0, y: 0, w: 1200, h: 24 }, { x: 0, y: 796, w: 1200, h: 24 },
     { x: 0, y: 0, w: 24, h: 820 }, { x: 1176, y: 0, w: 24, h: 820 },
-    /* hai bệ đá hai bên bàn thờ giữa sảnh */
-    { x: 330, y: 250, w: 40, h: 150 }, { x: 830, y: 250, w: 40, h: 150 }
+    /* hai bệ đá hai bên cổng */
+    { x: 300, y: 200, w: 40, h: 130 }, { x: 860, y: 200, w: 40, h: 130 }
   ],
+  /* Chọn cung KHÔNG có NPC riêng — bước vào cổng là hiện bảng chọn luôn,
+     vì đó là lúc người chơi thực sự cần quyết định. */
   npcs: [
-    { id: 'class', x: 250, y: 470, nm: 'Giáo Trưởng', role: 'Đổi class', g: '⚔' },
-    { id: 'sign', x: 600, y: 300, nm: 'Chiêm Tinh Sư', role: 'Chọn cung hoàng đạo', g: '✦' },
-    { id: 'shop', x: 950, y: 470, nm: 'Thợ Rèn', role: 'Cửa hàng vũ khí', g: '🔨' }
+    { id: 'class', x: 380, y: 430, nm: 'Giáo Trưởng', role: 'Đổi class', g: '⚔' },
+    { id: 'shop', x: 820, y: 430, nm: 'Thợ Rèn', role: 'Cửa hàng vũ khí', g: '🔨' }
   ],
-  gate: { x: 600, y: 600, r: 54 }
+  gate: { x: 600, y: 300, r: 58 }
 };
 const NPC_R = 62;          // khoảng cách bấm F được
 
