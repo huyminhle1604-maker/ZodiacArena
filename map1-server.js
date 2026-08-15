@@ -160,6 +160,121 @@ const COMBO_NM = {
   sag: 'Thiên Cung', cap: 'Bất Diệt', aqu: 'Vạn Biến', pis: 'Vô Tận'
 };
 
+
+/* ============================ CÂY KỸ NĂNG ============================ */
+/* Port từ arena cũ (server.js): 16 node / class × 3 class = 48 node.
+ * Ba chỗ buộc phải khác bản cũ vì map 1 có sẵn E/R từ cấp 1 và blessing
+ * slot e/r phụ thuộc vào chúng:
+ *   1. Node `_e` KHÔNG mở khoá E nữa (E đã có sẵn) mà nâng E lên +25%.
+ *   2. Nhánh A giữ nguyên R hiện tại; nhánh B ĐỔI R sang chiêu của nhánh B
+ *      (Cuồng Nộ / Nỏ Liên Thanh / Lời Nguyền) đúng nội dung bản cũ.
+ *   3. Node hồi sinh của Nhà sư tác động lên RESPAWN của map 1.
+ * Chọn nhánh cũng đặt p.br -> client đổi luôn skin sprite theo nhánh. */
+const MINLV = { 0: 1, 1: 2, 2: 2, 3: 3, 4: 5, 5: 8, 6: 12 };
+
+function buildMeta() {
+  const M = {};
+  for (const cls of Object.keys(CLASSES)) {
+    const k = (s) => cls + '_' + s;
+    M[k('root')] = { t: 0, cost: 0, req: [], mode: 'all', br: null };
+    M[k('e')] = { t: 1, cost: 1, req: [k('root')], mode: 'all', br: null };
+    M[k('p0')] = { t: 2, cost: 1, req: [k('e')], mode: 'all', br: null };
+    M[k('p1')] = { t: 2, cost: 1, req: [k('e')], mode: 'all', br: null };
+    for (const br of ['A', 'B']) {
+      const b = (s) => k(br + '_' + s);
+      M[b('root')] = { t: 3, cost: 1, req: [k('p0'), k('p1')], mode: 'any', br };
+      M[b('4a')] = { t: 4, cost: 1, req: [b('root')], mode: 'all', br };
+      M[b('4b')] = { t: 4, cost: 1, req: [b('root')], mode: 'all', br };
+      M[b('5a')] = { t: 5, cost: 1, req: [b('4a')], mode: 'all', br };
+      M[b('5b')] = { t: 5, cost: 1, req: [b('4b')], mode: 'all', br };
+      M[b('key')] = { t: 6, cost: 2, req: [b('5a'), b('5b')], mode: 'any', br };
+    }
+  }
+  return M;
+}
+const META = buildMeta();
+
+/* Node chỉ đặt cờ / cộng chỉ số. Cơ chế runtime hook trong dmgTo,
+ * attack, doE, doR, stepPlayer, onPlayerDown. */
+function applyFx(p, id) {
+  const f = p.fx;
+  switch (id) {
+    /* ---------- KIẾM SĨ ---------- */
+    case 'sw_root': p.mhp += 14; p.atk += 1; break;
+    case 'sw_e': f.ePow = (f.ePow || 1) + 0.25; break;
+    case 'sw_p0': p.dr += 0.08; break;
+    case 'sw_p1': p.reg += 0.7; break;
+    case 'sw_A_root': p.mhp += 22; p.dr += 0.04; break;
+    case 'sw_A_4a': p.dr += 0.10; p.spd -= 0.15; break;
+    case 'sw_A_4b': f.tauntPlus = 1; f.shieldPlus = 15; break;
+    case 'sw_A_5a': f.reflect = 0.25; break;
+    case 'sw_A_5b': f.guard = 0.25; break;
+    case 'sw_A_key': f.bulwark = 1; break;
+    case 'sw_B_root': p.atk += 6; p.spd += 0.1; break;
+    case 'sw_B_4a': p.ls += 0.08; break;
+    case 'sw_B_4b': p.dmgM += 0.20; p.rateM *= 1.15; break;
+    case 'sw_B_5a': f.rage = 0.25; break;
+    case 'sw_B_5b': f.whirl2 = 1; break;
+    case 'sw_B_key': f.lastStand = 1; break;
+
+    /* ---------- XẠ THỦ ---------- */
+    case 'ar_root': p.atk += 1; p.critC += 0.05; break;
+    case 'ar_e': f.ePow = (f.ePow || 1) + 0.25; break;
+    case 'ar_p0': p.spd += 0.35; break;
+    case 'ar_p1': p.rateM *= 0.88; break;
+    case 'ar_A_root': p.critC += 0.05; p.rngM += 0.05; break;
+    case 'ar_A_4a': p.critC += 0.12; break;
+    case 'ar_A_4b': p.rngM += 0.25; f.farDmg = 1; break;
+    case 'ar_A_5a': p.critD += 0.45; break;
+    case 'ar_A_5b': p.projN = 3; f.spreadPen = 0.6; break;
+    case 'ar_A_key': f.hunter = 1; break;
+    case 'ar_B_root': p.atk += 7; p.rateM *= 1.18; break;
+    case 'ar_B_4a': f.heavyBolt = 1; p.dmgM += 0.25; break;
+    case 'ar_B_4b': f.armorPen = 0.5; f.vulnOnHit = 1; break;
+    case 'ar_B_5a': f.rcdCut = 0.35; break;
+    case 'ar_B_5b': f.trapBoom = 1; break;
+    case 'ar_B_key': f.deathShot = 1; break;
+
+    /* ---------- NHÀ SƯ ---------- */
+    case 'mk_root': p.mmp += 18; p.mreg += 0.5; break;
+    case 'mk_e': f.ePow = (f.ePow || 1) + 0.25; break;
+    case 'mk_p0': p.mreg += 1.0; break;
+    case 'mk_p1': p.dmgM += 0.10; break;
+    case 'mk_A_root': p.mhp += 12; break;
+    case 'mk_A_4a': f.healM = (f.healM || 1) + 0.2; f.fastRes = 1; break;
+    case 'mk_A_4b': f.healShield = 20; break;
+    case 'mk_A_5a': f.auraHeal = 0.8; break;
+    case 'mk_A_5b': f.resurrect = 1; break;
+    case 'mk_A_key': f.fountain = 1; break;
+    case 'mk_B_root': p.atk += 2; p.mreg += 0.4; break;
+    case 'mk_B_4a': f.weaken = 0.12; break;
+    case 'mk_B_4b': f.mark = 0.15; break;
+    case 'mk_B_5a': f.burn = 1; break;
+    case 'mk_B_5b': p.ls += 0.12; f.soulDrain = 1; break;
+    case 'mk_B_key': f.judgement = 1; break;
+  }
+}
+
+function canAlloc(p, id) {
+  const m = META[id];
+  if (!m) return false;
+  if (!id.startsWith(p.cls + '_')) return false;
+  if (p.nodes.includes(id)) return false;
+  if (p.pts < m.cost) return false;
+  if (p.lv < MINLV[m.t]) return false;
+  if (m.br) {
+    const other = m.br === 'A' ? 'B' : 'A';
+    if (p.br === other) return false;                 // hai nhánh loại trừ nhau
+  }
+  if (m.req.length) {
+    const ok = m.mode === 'any'
+      ? m.req.some(r => p.nodes.includes(r))
+      : m.req.every(r => p.nodes.includes(r));
+    if (!ok) return false;
+  }
+  return true;
+}
+
 /* ============================ QUÁI ============================ */
 const ETYPES = {
   slime: { hp: 34, spd: 1.05, dmg: 7, r: 13, xp: 6, coin: 2, big: false },
@@ -232,7 +347,7 @@ function makeRoom() {
     players: [], enemies: [], projs: [], chests: [], loot: [],
     pools: [],            // vũng độc / hào quang
     gates: [], meteors: [], ev: [],
-    merchantOpen: -1, merchantT: 0, merchantRot: 0, stock: [],
+    merchantOpen: -1, merchantT: 0, merchantRot: 0, stock: [], weaken: 0,
     bossUp: false, bossDead: false, bossId: 0,
     campT: 0, blessT: 0, buffT: 0,
     results: null
@@ -264,6 +379,10 @@ function makePlayer(ws, nm, cls, slot, bot, sign) {
     xu: 0, token: 0,
     sign: sg,
     bl: { atk: null, e: null, r: null, pas: sg, dash: null },
+    /* cây kỹ năng */
+    pts: 0, nodes: [cls + '_root'], fx: {}, br: null,
+    dr: 0, ls: 0, reg: 0, mreg: 0, rateM: 1, rngM: 1, projN: 1,
+    frenzy: 0, volley: null, usedLast: false, lastStandBuff: 0, shotN: 0,
     combo: null,
     /* chỉ số phái sinh */
     dmgM: 1, drM: 1, spdM: 1, critC: 0.05, critD: 1.8,
@@ -289,8 +408,16 @@ function makePlayer(ws, nm, cls, slot, bot, sign) {
 function recompute(p) {
   const c = CLASSES[p.cls];
   p.mhp = c.hp; p.mmp = c.mp; p.spd = c.spd; p.atk = c.atk;
-  p.dmgM = 1; p.drM = 1; p.spdM = 1; p.critC = 0.05;
+  p.rng = c.rng; p.rate = c.rate;
+  p.dmgM = 1; p.drM = 1; p.spdM = 1; p.critC = 0.05; p.critD = 1.8;
   p.mhp += p.bonusHp || 0; p.atk += p.bonusAtk || 0;
+
+  /* cây kỹ năng: dựng lại từ base rồi duyệt node */
+  p.fx = {}; p.br = null;
+  p.dr = 0; p.ls = 0; p.reg = 0; p.mreg = 0; p.rateM = 1; p.rngM = 1; p.projN = 1;
+  for (const id of p.nodes || []) applyFx(p, id);
+  for (const id of p.nodes || []) { const m = META[id]; if (m && m.br && m.t === 3) p.br = m.br; }
+  p.dr = Math.min(0.6, p.dr);
 
   const B = p.bl;
   if (B.pas === 'tau') p.drM *= 0.85;
@@ -299,6 +426,11 @@ function recompute(p) {
   if (B.pas === 'cap') { const s = p.stackCap; p.dmgM *= 1 + s * 0.03; p.drM *= 1 - s * 0.03; p.spdM *= 1 + s * 0.01; }
   if (B.dash === 'gem') p.dashMax = 2; else p.dashMax = 1;
 
+  /* node cộng vào tốc đánh / tầm / hồi chiêu R */
+  p.rate = c.rate * p.rateM;
+  p.rng = c.rng * p.rngM;
+  p.spd = Math.max(1.2, p.spd);
+
   /* Bộ Hợp Cung */
   const all = SLOTS.map(s => B[s]);
   p.combo = (all[0] && all.every(v => v === all[0])) ? all[0] : null;
@@ -306,7 +438,9 @@ function recompute(p) {
 
   p.mhp = Math.round(p.mhp);
   p.hp = Math.min(p.hp, p.mhp); p.mp = Math.min(p.mp, p.mmp);
-  p.mxE = ESKILL[p.cls].cd; p.mxR = RSKILL[p.cls].cd;
+  p.mmp = Math.round(p.mmp);
+  p.mxE = ESKILL[p.cls].cd;
+  p.mxR = RSKILL[p.cls].cd * (1 - (p.fx.rcdCut || 0));   // Nạp Nhanh
 }
 
 /* ============================ QUÁI ============================ */
@@ -372,6 +506,17 @@ function dmgTo(t, base, opt, src) {
       for (const q of ROOM.players) if (q !== src && q.alive && dist(q, src) < 300) { d *= 1.08; break; }
     }
     if (src.bl.pas === 'lib' && Math.abs(src.hp / src.mhp - src.mp / src.mmp) < 0.15) d *= 1.2;
+
+    /* --- cây kỹ năng: bên gây sát thương --- */
+    const F = src.fx;
+    const dd = dist(src, t);
+    if (F.farDmg) d *= 1 + 0.2 * Math.min(1, dd / 350);            // Bắn Xa
+    if (F.rage && src.hp / src.mhp < 0.5) d *= 1 + F.rage;         // Máu Điên
+    if (F.hunter && t.hp / (t.mhp || 1) > 0.7) d *= 1.2;           // Thợ Săn
+    if (F.mark && t.mark > 0) d *= 1 + F.mark;                     // Trừng Phạt
+    if (F.judgement && (t.slow > 0 || t.vuln > 0)) d *= 1.35;      // Phán Xét
+    if (src.frenzy > 0) d *= 1.25;                                 // Cuồng Nộ
+    if (src.lastStandBuff > 0) d *= 1.5;                           // Tử Chiến
     d *= src.dmgM;
 
     /* --- chí mạng --- */
@@ -379,6 +524,7 @@ function dmgTo(t, base, opt, src) {
     if (src.combo === 'vir' && t.hp >= (t.mhp || 1) * 0.999) crit = true;
     if (crit) {
       d *= src.critD;
+      if (src.fx.hunter) src.cdR = Math.max(0, src.cdR - 1);       // Thợ Săn
       ev({ k: 'crit', x: t.x, y: t.y });
       if (src.bl.atk === 'vir') src.mp = Math.min(src.mmp, src.mp + 10);
       if (src.bl.atk === 'sco') applyPoison(t, src.combo === 'sco' ? 99 : 5);
@@ -392,6 +538,18 @@ function dmgTo(t, base, opt, src) {
     if (t.bl.pas === 'lib' && Math.abs(t.hp / t.mhp - t.mp / t.mmp) < 0.15) d *= 0.8;
     if (t.bl.atk === 'tau') d *= 1 - t.stackTau * 0.03;
     d *= t.drM;
+    /* giáp phẳng từ cây; Xuyên Giáp của người đánh bào bớt */
+    let dr = t.dr || 0;
+    if (src && src.fx && src.fx.armorPen) dr *= 1 - src.fx.armorPen;
+    if (dr > 0) d *= Math.max(0.25, 1 - dr);
+    /* Hộ Vệ: đồng đội Vệ Binh gần đó gánh 25% */
+    for (const g of ROOM.players) {
+      if (g === t || !g.alive || !g.fx.guard || dist(g, t) > 220) continue;
+      const share = d * g.fx.guard;
+      d -= share;
+      absorbTo(g, share);
+      break;
+    }
     if (t.shield > 0) {
       const a = Math.min(t.shield, d);
       t.shield -= a; d -= a;
@@ -403,6 +561,20 @@ function dmgTo(t, base, opt, src) {
   d = Math.max(1, Math.round(d));
   t.hp -= d;
   ev({ k: 'hit', x: t.x, y: t.y, d, c: t.slot !== undefined ? 1 : 0 });
+
+  /* --- cây kỹ năng: hiệu ứng sau đòn --- */
+  if (t.slot !== undefined && t.fx.reflect && src && opt.melee) {   // Phản Đòn
+    const r = Math.round(d * t.fx.reflect);
+    if (r > 0 && src.hp > 0) dmgTo(src, r, { noReflect: true }, null);
+  }
+  if (isPlayer) {
+    if (src.ls > 0) {                                               // Khát Máu / Đoạt Hồn
+      healP(src, d * src.ls);
+      if (src.fx.soulDrain) src.mp = Math.min(src.mmp, src.mp + d * 0.15);
+    }
+    if (src.fx.vulnOnHit) t.vuln = Math.max(t.vuln, 3);            // Xuyên Giáp (map1: vuln là giây)
+    if (src.fx.mark) t.mark = 3;                                    // Trừng Phạt (giây)
+  }
 
   /* --- hồi lại cho người đánh --- */
   if (isPlayer) {
@@ -425,6 +597,18 @@ function applyPoison(t, cap) {
   if (t.slot !== undefined && t.bl.pas === 'sco') return;   // miễn nhiễm
   t.poison = Math.min(cap || 5, (t.poison || 0) + 1);
   t.poisonT = 4;
+}
+
+/* Hộ Vệ dùng: đổ sát thương đã gánh sang người khác, khiên chịu trước. */
+function absorbTo(p, amount) {
+  let d = Math.round(amount);
+  if (d <= 0) return;
+  if (p.shield > 0) { const a = Math.min(p.shield, d); p.shield -= a; d -= a; }
+  if (d > 0) {
+    p.hp -= d;
+    ev({ k: 'hit', x: p.x, y: p.y, d, c: 1 });
+    if (p.hp <= 0) onPlayerDown(p, null);
+  }
 }
 
 function healP(p, amt) {
@@ -481,14 +665,30 @@ function gainXp(p, amt) {
   while (p.xp >= p.xn) {
     p.xp -= p.xn; p.lv++; p.xn = Math.round(p.xn * 1.35);
     p.bonusHp = (p.bonusHp || 0) + 6; p.bonusAtk = (p.bonusAtk || 0) + 1.2;
+    p.pts++;                                    // mỗi cấp 1 điểm kỹ năng
     recompute(p);
+    if (p.bot) botSpend(p);
     p.hp = Math.min(p.mhp, p.hp + 20);
     ev({ k: 'lvl', s: p.slot, x: p.x, y: p.y, lv: p.lv });
   }
 }
 
 function onPlayerDown(p, src) {
-  p.alive = false; p.deadT = RESPAWN; p.shield = 0;
+  /* Tử Chiến: mỗi ván 1 lần sống sót ở 1 HP */
+  if (p.fx.lastStand && !p.usedLast) {
+    p.usedLast = true;
+    p.hp = 1; p.shield = 20; p.shieldT = 8; p.lastStandBuff = 4; p.iframe = 0.6;
+    ev({ k: 'toast', s: -1, m: p.nm + ' — TỬ CHIẾN: sống sót ở 1 máu!' });
+    return;
+  }
+  /* Phục Sinh / Hồi Sinh Nhanh: nhà sư nhánh Trị Liệu rút ngắn thời gian chờ */
+  let fast = 1;
+  for (const q of ROOM.players) {
+    if (q === p || !q.alive) continue;
+    if (q.fx.resurrect) fast = Math.max(fast, 2.2);
+    else if (q.fx.fastRes) fast = Math.max(fast, 1.5);
+  }
+  p.alive = false; p.deadT = RESPAWN / fast; p.shield = 0;
   p.stackTau = 0; p.stackVir = 0;
   if (p.bl.pas !== 'cap' && p.combo !== 'cap') p.stackCap = 0;
   ev({ k: 'down', x: p.x, y: p.y, s: p.slot });
@@ -567,6 +767,10 @@ function attack(p) {
   p.shotN++;
   let mult = 1, times = 1;
 
+  if (p.fx.deathShot && p.shotN % 5 === 0) {                       // Phát Bắn Tử Thần
+    mult *= 3;
+    ev({ k: 'toast', s: p.slot, m: 'Phát Bắn Tử Thần!' });
+  }
   if (p.bl.atk === 'gem' && p.shotN % 3 === 0) times = 2;
   if (p.bl.atk === 'pis') {
     if (p.mp < 3) return;
@@ -610,13 +814,19 @@ function attack(p) {
       }
       ev({ k: 'slash', x: p.x, y: p.y, a: p.aim, r: rng, s: p.slot });
     } else {
-      const sp = p.cls === 'ar' ? 11 : 8;
+      const sp = p.fx.heavyBolt ? 8 : (p.cls === 'ar' ? 11 : 8);   // Bu-lông Nặng: đạn chậm hơn
       const pr = { sp, life: p.rng / sp / 30, ty: p.cls === 'ar' ? 'arrow' : 'orbp', pierce: 0 };
       if (p.bl.atk === 'sag') pr.pierce = 3;
       if (p.combo === 'sag') pr.pierce = 5;
-      shoot(p, p.aim, p.atk * mult * power, pr);
-      const last = ROOM.projs[ROOM.projs.length - 1];
-      if (last) last.basic = true;
+      /* Đa Tiễn: 3 mũi hình quạt, mỗi mũi yếu đi theo spreadPen */
+      const nProj = p.projN || 1;
+      const pen = nProj > 1 ? (p.fx.spreadPen || 1) : 1;
+      for (let i = 0; i < nProj; i++) {
+        const off = nProj === 1 ? 0 : (i - (nProj - 1) / 2) * 0.16;
+        shoot(p, p.aim + off, p.atk * mult * power * pen, Object.assign({}, pr));
+        const last = ROOM.projs[ROOM.projs.length - 1];
+        if (last) last.basic = true;
+      }
     }
   }
   p.combatT = 0.001; p.peaceT = 0;
@@ -647,7 +857,7 @@ function useSkill(p, s) {
 
 function doE(p, scale) {
   scale = scale || 1;
-  let power = 1;
+  let power = p.fx.ePow || 1;              // node `_e`: E mạnh thêm 25%
   if (p.bl.e === 'lib' && Math.abs(p.hp / p.mhp - p.mp / p.mmp) < 0.15) power *= 1.3;
   if (p.bl.e === 'vir') power *= 1 + Math.min(5, p.stackVir) * 0.1;
   if (p.bl.e === 'cap') power *= 1;
@@ -655,13 +865,15 @@ function doE(p, scale) {
 
   if (p.cls === 'sw') {
     let r = 96; if (p.bl.e === 'ari') r *= 1.5;
-    const n = aoe(p, p.x, p.y, r, p.atk * 1.8 * power * scale);
+    const times = p.fx.whirl2 ? 2 : 1;     // Xoáy Lốc: Chém Xoay đánh 2 lần
+    let n = 0;
+    for (let i = 0; i < times; i++) n = aoe(p, p.x, p.y, r, p.atk * 1.8 * power * scale);
     ev({ k: 'ring', x: p.x, y: p.y, r, c: '#ffd479' });
     if (p.bl.e === 'tau') for (const e of ROOM.enemies) if (dist(e, p) < r) { e.slow = 2; kb(e, p, 26); }
     dealt.v = n * p.atk * 1.8;
   } else if (p.cls === 'ar') {
     let rngM = p.bl.e === 'sag' ? 1.5 : 1;
-    shoot(p, p.aim, p.atk * 2.4 * power * scale, { sp: 14, life: p.rng * rngM / 14 / 30, ty: 'pierce', pierce: 4 });
+    shoot(p, p.aim, p.atk * 2.4 * power * scale, { sp: 14, life: p.rng * rngM / 14 / 30, ty: 'pierce', pierce: 4, boom: p.fx.trapBoom ? 1 : 0 });
     ev({ k: 'slash', x: p.x, y: p.y, a: p.aim, r: 60, s: p.slot });
   } else {
     let r = 120; if (p.bl.e === 'ari') r *= 1.5;
@@ -674,6 +886,26 @@ function doE(p, scale) {
   if (p.bl.e === 'sco') ROOM.pools.push({ ty: 'poison', x: p.x + Math.cos(p.aim) * 60, y: p.y + Math.sin(p.aim) * 60, r: 80, t: 5, own: p.slot });
   if (p.bl.e === 'can' && dealt.v > 0) { p.shield = Math.min(80, p.shield + dealt.v * 0.15); p.shieldT = 6; }
   if (p.bl.e === 'leo') ROOM.pools.push({ ty: 'aura', x: p.x, y: p.y, r: 160, t: 4, own: p.slot });
+  /* Ánh Sáng Thiêu: E gây bỏng 4 giây — dùng lại hệ độc sẵn có của map 1 */
+  if (p.fx.burn) {
+    for (const e of ROOM.enemies) if (dist(e, p) < 190) { e.poison = Math.max(e.poison, p.atk * 0.25); e.poisonT = 4; }
+  }
+}
+
+/* Nhánh B đổi hẳn R sang chiêu riêng — nội dung lấy từ arena cũ. */
+function doR_B(p, power) {
+  if (p.cls === 'sw') {                       // Cuồng Nộ
+    p.frenzy = 6;
+    ev({ k: 'ring', x: p.x, y: p.y, r: 70, c: '#ff5c6c' });
+    ev({ k: 'toast', s: p.slot, m: 'Cuồng Nộ! +25% sát thương và tốc đánh trong 6 giây' });
+  } else if (p.cls === 'ar') {                // Nỏ Liên Thanh
+    p.volley = { n: 6, t: 0, gap: 0.09, dmg: p.atk * 1.1 * power };
+    ev({ k: 'cast', x: p.x, y: p.y, s: p.slot });
+  } else {                                    // Lời Nguyền
+    const cx = p.x + Math.cos(p.aim) * 150, cy = p.y + Math.sin(p.aim) * 150;
+    ROOM.pools.push({ ty: 'curse', x: cx, y: cy, r: 110, t: 5, own: p.slot });
+    ev({ k: 'ring', x: cx, y: cy, r: 110, c: '#c58cff' });
+  }
 }
 
 function doR(p) {
@@ -681,9 +913,15 @@ function doR(p) {
   if (p.bl.r === 'tau') { power *= 1 + p.stackTau * 0.10; p.stackTau = 0; }
   if (p.bl.r === 'cap') power *= 1 + Math.min(5, Math.floor(p.rSaved / 10)) * 0.05;
 
+  /* Nhánh B đổi hẳn R sang chiêu của nhánh (đúng nội dung arena cũ) */
+  if (p.br === 'B') { doR_B(p, power); return; }
+
   if (p.cls === 'sw') {
-    p.shield = Math.min(140, p.shield + 60 * power); p.shieldT = 8;
-    ev({ k: 'ring', x: p.x, y: p.y, r: 60, c: '#ffe9a8' });
+    /* Khiên Thánh — Khiêu Chiến nới bán kính và cộng khiên */
+    p.shield = Math.min(140, p.shield + (60 + (p.fx.shieldPlus || 0)) * power); p.shieldT = 8;
+    const R = p.fx.tauntPlus ? 260 : 200;
+    for (const e of ROOM.enemies) if (dist(e, p) < R) { e.taunt = 4; e.tauntBy = p.slot; }
+    ev({ k: 'ring', x: p.x, y: p.y, r: R, c: '#ffe9a8' });
   } else if (p.cls === 'ar') {
     const cx = p.x + Math.cos(p.aim) * 180, cy = p.y + Math.sin(p.aim) * 180;
     let r = 140;
@@ -692,8 +930,21 @@ function doR(p) {
     if (p.bl.r === 'sag') { shoot(p, p.aim + 0.25, p.atk * 1.6, { sp: 12, life: 1, pierce: 2 }); shoot(p, p.aim - 0.25, p.atk * 1.6, { sp: 12, life: 1, pierce: 2 }); }
     ev({ k: 'ring', x: cx, y: cy, r, c: '#c8f08a' });
   } else {
-    healP(p, 45 * power);
-    for (const q of ROOM.players) if (q !== p && q.alive && dist(q, p) < 220) healP(q, 30 * power);
+    /* Chữa Lành — Hồi Sinh Nhanh (+20%), Suối Nguồn (×2, xoá độc, máu thừa thành khiên),
+       Lá Chắn Sinh Mệnh (+20 khiên mỗi lần hồi) */
+    const hm = (p.fx.healM || 1) * (p.fx.fountain ? 2 : 1);
+    const selfHeal = 45 * power * hm, mateHeal = 30 * power * hm;
+    if (p.fx.fountain) { p.poisonT = 0; p.poison = 0; }
+    const over = Math.max(0, p.hp + selfHeal - p.mhp);
+    healP(p, selfHeal);
+    if (p.fx.fountain && over > 0) { p.shield = Math.min(140, p.shield + over); p.shieldT = 8; }
+    if (p.fx.healShield) { p.shield = Math.min(140, p.shield + p.fx.healShield); p.shieldT = 8; }
+    for (const q of ROOM.players) {
+      if (q === p || !q.alive || dist(q, p) > 220) continue;
+      healP(q, mateHeal);
+      if (p.fx.fountain) { q.poisonT = 0; q.poison = 0; }
+      if (p.fx.healShield) { q.shield = Math.min(140, q.shield + p.fx.healShield); q.shieldT = 8; }
+    }
     ev({ k: 'ring', x: p.x, y: p.y, r: 220, c: '#9dffb0' });
   }
   if (p.bl.r === 'lib') { const avg = (p.hp / p.mhp + p.mp / p.mmp) / 2; p.hp = p.mhp * avg; p.mp = p.mmp * avg; }
@@ -815,6 +1066,7 @@ function updatePlayer(p) {
   p.stun = Math.max(0, p.stun - DT);
   p.slow = Math.max(0, p.slow - DT);
   p.vuln = Math.max(0, p.vuln - DT);
+  if (p.mark > 0) p.mark = Math.max(0, p.mark - DT);
   p.dashCrit = Math.max(0, p.dashCrit - DT);
   p.dashFar = Math.max(0, p.dashFar - DT);
   p.cdA = Math.max(0, p.cdA - DT);
@@ -849,8 +1101,26 @@ function updatePlayer(p) {
   /* khiên rò rỉ */
   if (p.shield > 0) { p.shieldT -= DT; if (p.shieldT <= 0) p.shield = Math.max(0, p.shield - 12 * DT); }
 
+  /* đồng hồ của cây kỹ năng */
+  if (p.frenzy > 0) p.frenzy = Math.max(0, p.frenzy - DT);
+  if (p.lastStandBuff > 0) p.lastStandBuff = Math.max(0, p.lastStandBuff - DT);
+
+  /* Bất Hoại Thành: tự hồi khiên tới 120, đồng đội quanh 120 cũng được */
+  if (p.fx.bulwark) {
+    if (p.shield < 120) { p.shield = Math.min(120, p.shield + 14 * DT); p.shieldT = 8; }
+    for (const q of ROOM.players) {
+      if (q === p || !q.alive || dist(q, p) > 120) continue;
+      if (q.shield < 60) { q.shield = Math.min(60, q.shield + 8 * DT); q.shieldT = 8; }
+    }
+  }
+  /* Hào Quang: đồng đội trong 130 hồi máu mỗi giây */
+  if (p.fx.auraHeal) {
+    for (const q of ROOM.players) if (q !== p && q.alive && dist(q, p) < 130) healP(q, p.fx.auraHeal * DT);
+    healP(p, p.fx.auraHeal * 0.5 * DT);
+  }
+
   /* hồi phục */
-  let mreg = 3, hreg = 0;
+  let mreg = 3 + (p.mreg || 0), hreg = p.reg || 0;
   if (p.combatT === 0) {
     mreg *= (p.bl.pas === 'pis') ? 3 : 1.4;
     hreg += 1.5;
@@ -882,7 +1152,17 @@ function updatePlayer(p) {
   p.aim = p.in.aim;
 
   /* đánh thường */
-  if (p.in.fire && p.cdA <= 0 && !p.pending) { attack(p); p.cdA = p.rate; }
+  /* Nỏ Liên Thanh: nhả 6 phát cách nhau 0.09 giây */
+  if (p.volley) {
+    p.volley.t -= DT;
+    if (p.volley.t <= 0) {
+      p.volley.t = p.volley.gap;
+      shoot(p, p.aim, p.volley.dmg, { sp: 13, life: p.rng / 13 / 30, ty: 'bolt' });
+      if (--p.volley.n <= 0) p.volley = null;
+    }
+  }
+  const rate = p.rate * (p.frenzy > 0 ? 0.8 : 1);     // Cuồng Nộ: đánh nhanh hơn
+  if (p.in.fire && p.cdA <= 0 && !p.pending) { attack(p); p.cdA = rate; }
 
   /* vùng độc / hào quang */
   for (const pool of ROOM.pools) {
@@ -1039,20 +1319,35 @@ function buy(p, id, slot) {
 
 /* ============================ QUÁI AI ============================ */
 function updateEnemies() {
+  /* Suy Nhược: lấy giá trị mạnh nhất trong số người chơi còn sống */
+  ROOM.weaken = 0;
+  for (const q of ROOM.players) if (q.alive && q.fx.weaken) ROOM.weaken = Math.max(ROOM.weaken, q.fx.weaken);
+
   /* lặp trên bản sao vì onEnemyDown có splice mảng gốc */
   for (const e of ROOM.enemies.slice()) {
     if (e.hp <= 0) continue;
     if (e.poisonT > 0) { e.poisonT -= DT; e.hp -= e.poison * 2.2 * DT; if (e.hp <= 0) { onEnemyDown(e, e.lastSrc || null); continue; } }
     e.slow = Math.max(0, e.slow - DT);
     e.vuln = Math.max(0, e.vuln - DT);
+    if (e.mark > 0) e.mark = Math.max(0, e.mark - DT);
     e.cd = Math.max(0, e.cd - DT);
 
     /* buff hoàng đạo: tự hồi máu (Song Ngư) */
     if (e.buff === 'pis' && e.hp < e.mhp) e.hp = Math.min(e.mhp, e.hp + e.mhp * 0.01 * DT);
 
+    /* Khiêu Chiến (Vệ Binh): ép quái nhắm người khiêu chiến, bỏ qua aggro thường */
+    if (e.taunt > 0) {
+      e.taunt -= DT;
+      const tp = ROOM.players.find(q => q.slot === e.tauntBy && q.alive && !q.escaped);
+      if (!tp) e.taunt = 0;
+    }
     /* aggro hẹp: chỉ đuổi khi tới gần, và bỏ cuộc nếu bị kéo quá xa camp */
     let tgt = null, nd = e.boss ? 420 : (e.ranged ? 260 : 190);
-    for (const p of ROOM.players) {
+    if (e.taunt > 0) {
+      tgt = ROOM.players.find(q => q.slot === e.tauntBy);
+      nd = tgt ? dist(tgt, e) : nd;
+    }
+    if (!tgt) for (const p of ROOM.players) {
       if (!p.alive || p.escaped) continue;
       const d = dist(p, e);
       if (d < nd) { nd = d; tgt = p; }
@@ -1073,7 +1368,7 @@ function updateEnemies() {
       if (!inWall(e.x, ny, 8)) e.y = clamp(ny, 20, MH - 20);
     } else if (e.cd <= 0) {
       e.cd = e.ranged ? 1.6 : 0.85;
-      let dmg = e.dmg * (e.buff === 'ari' ? 1.5 : 1);
+      let dmg = e.dmg * (e.buff === 'ari' ? 1.5 : 1) * (1 - (ROOM.weaken || 0));
       if (e.ranged) {
         ROOM.projs.push({ x: e.x, y: e.y, vx: Math.cos(a) * 6, vy: Math.sin(a) * 6, dmg, life: 2.2, own: -1, ty: 'eball', pierce: 0, hit: [], src: e, sx: e.x, sy: e.y });
       } else {
@@ -1086,6 +1381,20 @@ function updateEnemies() {
 }
 
 /* ============================ BOT ============================ */
+/* Bot rải điểm ngay khi có: đi thẳng một nhánh cho ra build tử tế. */
+function botSpend(p) {
+  for (let guard = 0; guard < 20 && p.pts > 0; guard++) {
+    const pool = Object.keys(META).filter(id => canAlloc(p, id));
+    if (!pool.length) break;
+    /* ưu tiên node rẻ và sâu nhất có thể */
+    pool.sort((a, b) => META[b].t - META[a].t);
+    const id = pool[0];
+    p.pts -= META[id].cost;
+    p.nodes.push(id);
+    recompute(p);
+  }
+}
+
 function updateBot(p) {
   if (!p.alive) return;
   const bt = p.bt;
@@ -1159,6 +1468,14 @@ function step() {
     const pool = R.pools[i];
     pool.t -= DT;
     if (pool.ty === 'poison') for (const e of R.enemies) if (dist(e, pool) < pool.r && Math.random() < 0.1) applyPoison(e, 5);
+    /* Lời Nguyền: làm chậm 45% và gây Yếu Giáp trong vùng */
+    if (pool.ty === 'curse') {
+      for (const e of R.enemies) if (dist(e, pool) < pool.r) { e.slow = 0.4; e.vuln = Math.max(e.vuln, 0.4); }
+      for (const q of R.players) {
+        if (!q.alive || q.slot === pool.own || dist(q, pool) > pool.r) continue;
+        q.slow = 0.4; q.vuln = Math.max(q.vuln, 0.4);
+      }
+    }
     if (pool.t <= 0) R.pools.splice(i, 1);
   }
 
@@ -1329,6 +1646,8 @@ function startMatch() {
     p.xu = 0; p.token = 0; p.lv = 1; p.xp = 0; p.xn = 40;
     p.bonusHp = 0; p.bonusAtk = 0;
     p.bl = { atk: null, e: null, r: null, pas: p.sign || null, dash: null };
+    p.pts = 0; p.nodes = [p.cls + '_root']; p.usedLast = false;
+    p.frenzy = 0; p.volley = null; p.lastStandBuff = 0; p.shotN = 0;
     p.stackCap = 0; p.stackAtkCap = 0; p.aliveT = 0; p.reviveLeft = 1;
     p.bought = {}; p.spdBuy = 0;
     recompute(p);
@@ -1344,7 +1663,7 @@ function snapshot(forSlot) {
   const seeAll = me && me.bl.pas === 'vir';
 
   const P = R.players.map(p => ({
-    s: p.slot, nm: p.nm, cls: p.cls, bot: p.bot ? 1 : 0,
+    s: p.slot, nm: p.nm, cls: p.cls, bot: p.bot ? 1 : 0, br: p.br,
     x: Math.round(p.x), y: Math.round(p.y), a: Math.round(p.aim * 100) / 100,
     hp: Math.max(0, Math.round(p.hp)), mhp: p.mhp, mp: Math.round(p.mp), mmp: p.mmp,
     sh: Math.round(p.shield), lv: p.lv, al: p.alive ? 1 : 0, es: p.escaped ? 1 : 0,
@@ -1381,6 +1700,7 @@ function snapshot(forSlot) {
       cdR: Math.round(me.cdR * 10) / 10, mxR: me.mxR,
       dc: me.dashChg, dm: me.dashMax, dcd: Math.round(me.dashCd * 10) / 10,
       bl: me.bl, combo: me.combo, prog: Math.round(me.openProg / 1.2 * 100),
+      nd: me.nodes, pts: me.pts, br: me.br,
       nc: me.nearChest, nm2: me.nearMerchant, ready: me.ready ? 1 : 0,
       stock: R.stock,
       bought: R.stock.filter(id => me.bought && me.bought[R.merchantRot + ':' + id])
@@ -1429,7 +1749,7 @@ server.on('upgrade', (req, sock) => {
   sock.on('error', () => onClose(ws));
   send(ws, JSON.stringify({
     t: 'welcome', maxp: MAXP,
-    cfg: { MW, MH, MATCH_TIME, EXODUS_TIME, WALLS, SIGNS, SIGN_NM, SIGN_THEME, SLOTS, SLOT_NM, BLESS, COMBO_NM, SHOP, CLASSES }
+    cfg: { MW, MH, MATCH_TIME, EXODUS_TIME, WALLS, SIGNS, SIGN_NM, SIGN_THEME, SLOTS, SLOT_NM, BLESS, COMBO_NM, SHOP, CLASSES, MINLV, META }
   }));
 });
 
@@ -1515,6 +1835,15 @@ function handleMsg(ws, m) {
     case 'sk': useSkill(p, m.s === 'R' ? 'R' : 'E'); break;
     case 'dash': doDash(p); break;
     case 'ready': p.ready = !!m.v; break;
+    case 'node': {
+      const id = String(m.id || '');
+      if (!canAlloc(p, id)) break;
+      p.pts -= META[id].cost;
+      p.nodes.push(id);
+      recompute(p);
+      ev({ k: 'toast', s: p.slot, m: 'Mở kỹ năng: ' + id });
+      break;
+    }
     case 'pick':
       if (!p.pending) return;
       if (p.pending.signs.includes(m.sign)) setBless(p, m.sign, m.slot);

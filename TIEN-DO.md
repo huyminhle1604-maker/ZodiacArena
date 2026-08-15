@@ -38,6 +38,24 @@ Trên Windows có thể double-click `start.bat`.
 - `skinOf(p)` ưu tiên `p.br` (nhánh) nếu server gửi, chưa có thì chia theo `p.s % 3` để mỗi slot một dáng. **Khi làm hệ nhánh cho map1, chỉ cần broadcast thêm trường `br` là ngoại hình tự đổi.**
 - `map1-server.js` không sửa dòng nào.
 
+### Cây kỹ năng 48 node — port từ arena cũ sang map 1
+`server.js` chạy cây trên hệ cờ `p.fx` với 30 flag móc vào `dmgTo`/`updatePlayer`/`doSkill`. `map1-server.js` không có hạ tầng đó (`grep -c 'p.fx'` = 0) và dùng mô hình chỉ số khác, nên phải dựng lại toàn bộ hook.
+
+- Thêm `MINLV` / `buildMeta()` / `applyFx()` / `canAlloc()`; người chơi có thêm `pts`, `nodes`, `fx`, `br`, `dr`, `ls`, `reg`, `mreg`, `rateM`, `rngM`, `projN`.
+- `recompute()` reset `fx` + 7 chỉ số mới rồi duyệt `nodes` — gọi nhiều lần không cộng dồn lặp (có test).
+- Hook mới trong `dmgTo` (farDmg, rage, hunter, mark, judgement, frenzy, lastStandBuff, armorPen, giáp phẳng `dr`, Hộ Vệ, Phản Đòn, hút máu, soulDrain, vulnOnHit), `attack` (deathShot, Đa Tiễn + spreadPen, heavyBolt), `doE` (ePow, Xoáy Lốc, Bẫy Nổ, Ánh Sáng Thiêu), `doR` (Khiêu Chiến, healM/healShield/fountain), tick bị động (bulwark, auraHeal, weaken, reg/mreg, đồng hồ frenzy), `updateEnemies` (taunt, Suy Nhược), `onPlayerDown` (Tử Chiến, fastRes/resurrect).
+- `doR_B()` mới: nhánh B đổi hẳn R (Cuồng Nộ / Nỏ Liên Thanh / Lời Nguyền) đúng nội dung bản cũ.
+
+Bốn chỗ buộc phải khác bản cũ:
+1. **Node tầng 1 nâng cấp E thay vì mở khoá E** — map 1 có E từ cấp 1 và blessing slot `e` phụ thuộc vào nó; gate lại là cấp 1 mất E và slot `e` thành vô dụng.
+2. **Nhánh A giữ R hiện có**, chỉ nhánh B đổi R. Bản cũ cả hai nhánh đều *mở* R vì R vốn khoá.
+3. **`vuln` ở map 1 là đồng hồ giây**, không phải hệ số như bản cũ — Xuyên Giáp đặt `vuln = 3` chứ không phải `0.15`.
+4. **Bỏ hệ số nerf tank của PvP** (`DR_DUEL_SCALE`, trần khiên 70) — map 1 không có chế độ duel.
+
+UI: nút lên cấp cạnh thanh máu (không tự bật bảng, đúng yêu cầu), phím `T` mở/đóng, `Esc` đóng. Bảng cây chỉ vẽ lại khi dữ liệu đổi — vẽ mỗi frame thì nút bị thay giữa `mousedown` và `mouseup` nên click không ăn (đã dính lỗi này ở merchant trước đó).
+
+`test-tree.js` trích thẳng `applyFx`/`canAlloc`/`META` từ `map1-server.js` bằng `vm` nên không thể lệch bản khi sửa server.
+
 ### Chọn cung ở sảnh -> blessing bị động
 - `map1-server.js`: `makePlayer()` nhận thêm tham số `sign`, lưu `p.sign` và gắn thẳng `bl.pas`. `join` đọc `m.sg`. `startMatch()` reset blessing nhưng **giữ lại** `pas: p.sign`. Bot không truyền cung nên tự bốc ngẫu nhiên.
 - `map1.html`: client **nối WebSocket ngay khi mở trang** thay vì đợi bấm nút — gói `welcome` mang `cfg` tới trước cả khi join, nhờ đó bảng chọn cung lấy được `BLESS[sg].pas` thật từ server thay vì chép lại mô tả ở client (chép thì cân bằng lại là lệch ngay). Nút vào map khoá tới khi chọn xong cung.

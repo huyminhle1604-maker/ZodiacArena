@@ -67,7 +67,8 @@ Cổng `8080` (hoặc `start.bat`). Chạy song song với map 1 được vì kh
 | `R` | Kỹ năng mạnh |
 | `Shift` | **Lướt** — 140px, hồi 4 giây, có 0.15s bất tử |
 | `F` | Mở merchant (khi đứng cạnh) |
-| `Esc` | Đóng merchant |
+| `T` | Cây kỹ năng |
+| `Esc` | Đóng merchant · đóng cây kỹ năng |
 
 ---
 
@@ -113,6 +114,32 @@ Ví dụ **Bọ Cạp**: gắn `atk` → chí mạng gieo độc cộng dồn 5 
 → **60 hiệu ứng**, bảng đầy đủ ở `BLESS` trong [`map1-server.js`](map1-server.js).
 
 Gắn **đủ 5 slot cùng một cung** thì mở **Bộ Hợp Cung** (Chiến Thần, Sơn Nhạc, Vạn Độc, Bất Diệt…).
+
+### Cây kỹ năng
+
+Mỗi cấp cho **1 điểm kỹ năng**. Lên cấp **không tự mở bảng** — một nút hiện cạnh thanh máu báo số điểm đang treo, bấm vào (hoặc phím `T`) mới mở cây.
+
+16 node / class × 3 class = **48 node**, port từ arena cũ:
+
+| Tầng | Cần cấp | Nội dung |
+|---|---|---|
+| 0 | 1 | Node gốc, có sẵn |
+| 1 | 2 | Nâng cấp kỹ năng E (+25%) |
+| 2 | 2 | Hai node bị động |
+| 3 | 3 | **Chốt nhánh** — khoá vĩnh viễn nhánh còn lại |
+| 4–5 | 5 · 8 | Bốn node của nhánh |
+| 6 | 12 | Keystone, giá 2 điểm |
+
+Chốt nhánh cũng **đổi luôn ngoại hình nhân vật** sang skin của nhánh đó, và **nhánh B đổi hẳn kỹ năng R**: Kiếm sĩ → Cuồng Nộ · Xạ thủ → Nỏ Liên Thanh · Nhà sư → Lời Nguyền.
+
+Cây **reset mỗi ván** — giống blessing, build chết theo ván. Bot cũng tự rải điểm.
+
+Ba chỗ khác arena cũ, vì map 1 có sẵn E/R từ cấp 1 và blessing slot `e`/`r` phụ thuộc vào chúng:
+- Node tầng 1 **nâng cấp** E thay vì mở khoá E.
+- Nhánh A giữ nguyên R hiện có và nâng cấp nó; chỉ nhánh B mới đổi R.
+- Node hồi sinh của Nhà sư rút ngắn `RESPAWN` của map 1.
+
+Chạy `node test-tree.js` để kiểm logic cây (gate theo cấp, thứ tự node, loại trừ nhánh, cộng dồn chỉ số).
 
 ### Chọn cung ở màn vào game
 
@@ -208,6 +235,7 @@ Chi tiết API và cách tích hợp: [`SPRITES_HANDOFF.md`](SPRITES_HANDOFF.md)
 | `index.html` | Client arena bản cũ |
 | `sprites-legacy.js` | Bộ sprite 16×16 cũ, chỉ `index.html` dùng |
 | `test-bot.js` | Bot client cho **arena cũ** (map 1 đã có bot sẵn trong server) |
+| `test-tree.js` | Test logic cây kỹ năng của map 1 — `node test-tree.js` |
 | `game_idea.txt` | **Thiết kế 3 map đầy đủ** — đã chốt sau vòng review |
 | `TIEN-DO.md` | Nhật ký tiến độ, các quyết định làm khác handoff |
 | `HANDOFF.md` | Kiến trúc arena cũ, cho dev |
