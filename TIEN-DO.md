@@ -38,6 +38,10 @@ Trên Windows có thể double-click `start.bat`.
 - `skinOf(p)` ưu tiên `p.br` (nhánh) nếu server gửi, chưa có thì chia theo `p.s % 3` để mỗi slot một dáng. **Khi làm hệ nhánh cho map1, chỉ cần broadcast thêm trường `br` là ngoại hình tự đổi.**
 - `map1-server.js` không sửa dòng nào.
 
+### Chọn cung ở sảnh -> blessing bị động
+- `map1-server.js`: `makePlayer()` nhận thêm tham số `sign`, lưu `p.sign` và gắn thẳng `bl.pas`. `join` đọc `m.sg`. `startMatch()` reset blessing nhưng **giữ lại** `pas: p.sign`. Bot không truyền cung nên tự bốc ngẫu nhiên.
+- `map1.html`: client **nối WebSocket ngay khi mở trang** thay vì đợi bấm nút — gói `welcome` mang `cfg` tới trước cả khi join, nhờ đó bảng chọn cung lấy được `BLESS[sg].pas` thật từ server thay vì chép lại mô tả ở client (chép thì cân bằng lại là lệch ngay). Nút vào map khoá tới khi chọn xong cung.
+
 ### UI "Thiên Bàn" — áp vào `map1.html`
 Theo `UI_HANDOFF.md` + trang đối chiếu `Zodiac Arena UI.dc.html` của Claude Design. Chỉ đổi lớp trình bày, không đụng gameplay/netcode/`map1-server.js`.
 - **Font**: Cormorant Garamond (tên gọi, tiêu đề, đồng hồ, phím kỹ năng) · Be Vietnam Pro (câu văn) · JetBrains Mono (nhãn máy, số liệu). Nạp qua `<link>` Google Fonts — xem cảnh báo dưới.

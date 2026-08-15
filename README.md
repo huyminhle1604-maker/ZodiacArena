@@ -114,6 +114,12 @@ Ví dụ **Bọ Cạp**: gắn `atk` → chí mạng gieo độc cộng dồn 5 
 
 Gắn **đủ 5 slot cùng một cung** thì mở **Bộ Hợp Cung** (Chiến Thần, Sơn Nhạc, Vạn Độc, Bất Diệt…).
 
+### Chọn cung ở màn vào game
+
+Trước khi vào map, người chơi chọn **1 trong 12 cung** — cung đó vào thẳng slot **Bị Động**, nên bạn bắt đầu ván với sẵn một blessing thay vì tay trắng. Màn chọn hiện luôn mô tả hiệu ứng bị động của từng cung (lấy trực tiếp từ server, không chép lại ở client).
+
+Cung chọn ở sảnh **được giữ qua các ván mới**. Nhặt blessing khác gắn vào slot `pas` thì đè mất — giống mọi slot khác. Bot cũng được bốc một cung ngẫu nhiên.
+
 Nguồn blessing: rương (45% cơ hội) và merchant. Blessing của người khác **không công khai** — trừ khi bạn gắn Xử Nữ vào `pas`.
 
 ### Rương

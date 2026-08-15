@@ -250,8 +250,11 @@ function resetWorld() {
 }
 
 /* ============================ NGƯỜI CHƠI ============================ */
-function makePlayer(ws, nm, cls, slot, bot) {
+function makePlayer(ws, nm, cls, slot, bot, sign) {
   const c = CLASSES[cls];
+  /* Cung chọn ở sảnh = blessing slot BỊ ĐỘNG lúc vào map. Bot chọn bừa.
+     Về sau nhặt blessing khác đè lên slot pas thì mất — giống mọi slot khác. */
+  const sg = SIGNS.includes(sign) ? sign : (bot ? pick(SIGNS) : null);
   const p = {
     ws, bot: !!bot, slot, nm: (nm || 'Người chơi').slice(0, 14), cls,
     x: rnd(200, MW - 200), y: rnd(200, MH - 200), aim: 0,
@@ -259,7 +262,8 @@ function makePlayer(ws, nm, cls, slot, bot) {
     lv: 1, xp: 0, xn: 40, spd: c.spd, atk: c.atk, rng: c.rng, rate: c.rate,
     alive: true, deadT: 0, escaped: false,
     xu: 0, token: 0,
-    bl: { atk: null, e: null, r: null, pas: null, dash: null },
+    sign: sg,
+    bl: { atk: null, e: null, r: null, pas: sg, dash: null },
     combo: null,
     /* chỉ số phái sinh */
     dmgM: 1, drM: 1, spdM: 1, critC: 0.05, critD: 1.8,
@@ -1315,7 +1319,7 @@ function startMatch() {
   while (ROOM.players.length < want) {
     const used = ROOM.players.map(p => p.slot);
     let slot = 0; while (used.includes(slot)) slot++;
-    const b = makePlayer(null, names[bi % names.length], pick(['sw', 'ar', 'mk']), slot, true);
+    const b = makePlayer(null, names[bi % names.length], pick(['sw', 'ar', 'mk']), slot, true, null);
     bi++;
     ROOM.players.push(b);
   }
@@ -1324,7 +1328,7 @@ function startMatch() {
     p.hp = p.mhp; p.mp = p.mmp; p.alive = true; p.escaped = false;
     p.xu = 0; p.token = 0; p.lv = 1; p.xp = 0; p.xn = 40;
     p.bonusHp = 0; p.bonusAtk = 0;
-    p.bl = { atk: null, e: null, r: null, pas: null, dash: null };
+    p.bl = { atk: null, e: null, r: null, pas: p.sign || null, dash: null };
     p.stackCap = 0; p.stackAtkCap = 0; p.aliveT = 0; p.reviveLeft = 1;
     p.bought = {}; p.spdBuy = 0;
     recompute(p);
@@ -1491,7 +1495,7 @@ function handleMsg(ws, m) {
     const used = ROOM.players.map(p => p.slot);
     let slot = 0; while (used.includes(slot)) slot++;
     const cls = CLASSES[m.cls] ? m.cls : 'sw';
-    const p = makePlayer(ws, m.nm, cls, slot, false);
+    const p = makePlayer(ws, m.nm, cls, slot, false, m.sg);
     p.ready = false;
     ws.player = p;
     ROOM.players.push(p);

@@ -82,6 +82,21 @@
   .cls b{font-family:var(--font-display);font-size:18px;font-weight:700;line-height:1}
   .cls span{font-family:var(--font-mono);font-size:9.5px;letter-spacing:.07em;color:var(--ink-3)}
   .cls.on span{color:var(--ink-2)}
+  .sign-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+  .sgn{background:var(--panel-2);border:1px solid var(--line-2);padding:8px 4px;cursor:pointer;color:var(--ink);
+    display:flex;flex-direction:column;align-items:center;gap:3px;font-family:var(--font-body)}
+  .sgn:hover{border-color:var(--ink-3)}
+  .sgn b{font-size:15px;line-height:1;font-weight:400;color:var(--ink-2)}
+  .sgn span{font-family:var(--font-mono);font-size:7.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .sgn.on{border-color:var(--accent);background:rgba(185,139,232,.1)}
+  .sgn.on b{color:var(--accent)}
+  .sgn.on span{color:var(--ink-2)}
+  .signinfo{background:var(--slot);border:1px solid var(--line);border-left:3px solid var(--line-2);
+    padding:9px 12px;font-size:13px;line-height:1.5;color:var(--ink-3);min-height:56px}
+  .signinfo.on{border-left-color:var(--sl-pas)}
+  .signinfo b{font-family:var(--font-display);font-size:16px;font-weight:600;color:var(--ink);display:block;margin-bottom:2px}
+  .signinfo i{font-style:normal;color:var(--ink-2)}
   .keys{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13px;color:var(--ink-2);
     border-top:1px solid var(--line);padding-top:18px;align-items:center}
   .keys kbd{font-family:var(--font-mono);font-size:10.5px;background:var(--panel-2);border:1px solid var(--line-2);
@@ -345,7 +360,13 @@
       </div>
     </div>
 
-    <button class="go" id="goBtn">Vào map 1</button>
+    <div class="fld">
+      <label>Cung hoàng đạo · quyết định blessing bị động</label>
+      <div class="sign-grid" id="signGrid"></div>
+      <div class="signinfo" id="signInfo">Chọn một cung để xem hiệu ứng bị động.</div>
+    </div>
+
+    <button class="go" id="goBtn" disabled>Chọn cung để vào map</button>
 
     <div class="keys">
       <kbd>WASD</kbd><span>Di chuyển</span>
@@ -398,24 +419,48 @@ document.getElementById('clsRow').addEventListener('click',function(e){
   [].forEach.call(this.children,function(c){c.classList.remove('on')});
   b.classList.add('on'); CLS=b.dataset.c;
 });
+/* Bảng chọn cung dựng từ CFG — mô tả bị động lấy thẳng từ server,
+   không chép lại ở client để khỏi lệch khi cân bằng lại. */
+var SIGN=null;
+function buildSignGrid(){
+  var g=document.getElementById('signGrid'); if(!g||!CFG||g.children.length) return;
+  var h='';
+  CFG.SIGNS.forEach(function(sg){
+    h+='<button class="sgn" data-s="'+sg+'"><b>'+SIGN_GLYPH[sg]+'</b><span>'+CFG.SIGN_NM[sg]+'</span></button>';
+  });
+  g.innerHTML=h;
+  g.addEventListener('click',function(e){
+    var b=e.target.closest('.sgn'); if(!b) return;
+    [].forEach.call(g.children,function(c){c.classList.remove('on')});
+    b.classList.add('on'); SIGN=b.dataset.s;
+    var info=document.getElementById('signInfo');
+    info.classList.add('on');
+    info.innerHTML='<b>'+SIGN_GLYPH[SIGN]+' '+CFG.SIGN_NM[SIGN]+' · '+CFG.SIGN_THEME[SIGN]+'</b>'+
+                   '<i>Bị động: '+CFG.BLESS[SIGN].pas+'</i>';
+    var go=document.getElementById('goBtn');
+    go.disabled=false; go.textContent='Vào map 1';
+  });
+}
+
 document.getElementById('goBtn').onclick=function(){
+  if(!SIGN||!WS||WS.readyState!==1) return;
   var nm=document.getElementById('nameIn').value.trim()||'Người chơi';
-  connect(nm);
+  WS.send(JSON.stringify({t:'join',nm:nm,cls:CLS,sg:SIGN}));
 };
 document.getElementById('nameIn').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('goBtn').click(); });
 
 /* ================= mạng ================= */
-function connect(nm){
+function connect(){
   var proto=location.protocol==='https:'?'wss://':'ws://';
   WS=new WebSocket(proto+location.host);
-  WS.onopen=function(){ WS.send(JSON.stringify({t:'join',nm:nm,cls:CLS})); };
   WS.onmessage=function(e){ onMsg(JSON.parse(e.data)); };
   WS.onclose=function(){ toast('Mất kết nối với server'); };
 }
+connect();
 function sendMsg(o){ if(WS&&WS.readyState===1) WS.send(JSON.stringify(o)); }
 
 function onMsg(m){
-  if(m.t==='welcome'){ CFG=m.cfg; return; }
+  if(m.t==='welcome'){ CFG=m.cfg; buildSignGrid(); return; }
   if(m.t==='full'){ alert('Phòng đã đầy'); return; }
   if(m.t==='joined'){
     MY=m.slot; joined=true;
