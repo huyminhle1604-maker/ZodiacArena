@@ -81,7 +81,7 @@ farm quái → xu → rương → blessing → merchant → world boss
           → hết giờ → mưa thiên thạch + 5 cổng → thoát hoặc mất trắng
 ```
 
-**Địa hình cố định mọi ván** (dễ so sánh khi test): 9 bãi quái · 16 chỗ rương · 3 merchant · 8 bức tường · boss ở chính giữa.
+**Địa hình cố định mọi ván** (dễ so sánh khi test): 12 bãi quái · 16 chỗ rương · 3 merchant · 8 bức tường · boss ở chính giữa.
 
 ### Quái
 
@@ -92,6 +92,8 @@ farm quái → xu → rương → blessing → merchant → world boss
 | Brute | 95 | 15 | 18 | 7 |
 | Caster (tầm xa) | 40 | 9 | 13 | 4 |
 | **World boss** | **1400** | 26 | 160 | 90 |
+
+Bãi quái hồi sinh **4 giây một lượt, mỗi lượt 3 con** cho 3 bãi đang thiếu — khoảng 45 con/phút. Bắt đầu ván có **~70 con** trên map.
 
 Boss xuất hiện ở **giây 210** (35% thời lượng ván) tại giữa map — đếm ngược công khai cho cả map thấy, đây là lý do PvP nổ ra sớm. Boss rơi **token**.
 
@@ -151,7 +153,7 @@ Nguồn blessing: rương (45% cơ hội) và merchant. Blessing của người 
 
 ### Rương
 
-16 chỗ cố định, mở mất thời gian nên là điểm dễ bị úp. Kết quả:
+16 chỗ cố định, mở mất thời gian nên là điểm dễ bị úp. Mở xong thì **45 giây sau rương đầy lại** ở chỗ cũ. Kết quả:
 
 | Tỉ lệ | Nhận được |
 |---|---|
@@ -236,6 +238,7 @@ Chi tiết API và cách tích hợp: [`SPRITES_HANDOFF.md`](SPRITES_HANDOFF.md)
 | `sprites-legacy.js` | Bộ sprite 16×16 cũ, chỉ `index.html` dùng |
 | `test-bot.js` | Bot client cho **arena cũ** (map 1 đã có bot sẵn trong server) |
 | `test-tree.js` | Test logic cây kỹ năng của map 1 — `node test-tree.js` |
+| `test-nav.js` | Test tìm đường của bot — `node test-nav.js` |
 | `game_idea.txt` | **Thiết kế 3 map đầy đủ** — đã chốt sau vòng review |
 | `TIEN-DO.md` | Nhật ký tiến độ, các quyết định làm khác handoff |
 | `HANDOFF.md` | Kiến trúc arena cũ, cho dev |

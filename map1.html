@@ -200,16 +200,41 @@
 
   /* ---------- nút lên cấp ---------- */
   .lvup{pointer-events:auto;display:flex;align-items:center;gap:10px;background:var(--panel);
-    border:1px solid var(--accent);box-shadow:0 0 0 1px rgba(185,139,232,.18);padding:7px 13px 7px 9px;
+    border:1px solid var(--accent);padding:7px 13px 7px 9px;position:relative;
     cursor:pointer;color:var(--ink);font-family:var(--font-body);text-align:left;align-self:flex-start;
-    --tick:var(--accent);--tickw:8px;animation:lvpulse 1.6s ease-in-out infinite}
-  .lvup:hover{background:var(--panel-2)}
+    --tick:var(--accent);--tickw:8px;
+    animation:lvbreath 2.4s cubic-bezier(.4,0,.6,1) infinite}
+  .lvup:hover{background:var(--panel-2);animation-play-state:paused;
+    box-shadow:0 0 0 3px rgba(185,139,232,.22),0 0 26px rgba(185,139,232,.3)}
+  /* quầng thở lan ra rồi tan — bắt mắt hơn viền nhấp nháy, và không đẩy layout */
+  .lvup .ring{position:absolute;inset:-1px;border:1px solid var(--accent);pointer-events:none;
+    animation:lvring 2.4s cubic-bezier(.2,.6,.4,1) infinite}
   .lvup .n{font-family:var(--font-display);font-size:24px;font-weight:700;color:var(--accent);
-    line-height:1;min-width:22px;text-align:center;font-variant-numeric:tabular-nums}
+    line-height:1;min-width:22px;text-align:center;font-variant-numeric:tabular-nums;
+    animation:lvglow 2.4s cubic-bezier(.4,0,.6,1) infinite}
   .lvup .t{font-family:var(--font-mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;
     color:var(--ink-3);line-height:1.5}
   .lvup .t b{color:var(--ink-2);font-weight:400}
-  @keyframes lvpulse{0%,100%{box-shadow:0 0 0 1px rgba(185,139,232,.18)}50%{box-shadow:0 0 0 3px rgba(185,139,232,.16)}}
+  /* thở: sáng dần rồi lịm, kèm nhích nhẹ 2% */
+  @keyframes lvbreath{
+    0%,100%{box-shadow:0 0 0 0 rgba(185,139,232,.16),0 0 0 rgba(185,139,232,0);transform:scale(1)}
+    50%    {box-shadow:0 0 0 3px rgba(185,139,232,.20),0 0 22px rgba(185,139,232,.28);transform:scale(1.02)}
+  }
+  @keyframes lvring{
+    0%  {opacity:.55;transform:scale(1)}
+    70% {opacity:0;transform:scale(1.14)}
+    100%{opacity:0;transform:scale(1.14)}
+  }
+  @keyframes lvglow{
+    0%,100%{text-shadow:none}
+    50%    {text-shadow:0 0 14px rgba(185,139,232,.75)}
+  }
+  /* tôn trọng người bật giảm chuyển động trong hệ điều hành */
+  @media (prefers-reduced-motion:reduce){
+    .lvup,.lvup .ring,.lvup .n{animation:none}
+    .lvup .ring{display:none}
+    .lvup{box-shadow:0 0 0 2px rgba(185,139,232,.22)}
+  }
 
   /* ---------- cây kỹ năng ---------- */
   #tree .mbox{--tick:var(--accent);max-width:940px;gap:16px}
@@ -260,6 +285,9 @@
   .mhead{display:flex;flex-direction:column;gap:5px}
   .mbox h2{font-family:var(--font-display);font-size:28px;font-weight:700;line-height:1.05}
   .mbox .note{color:var(--ink-2);font-size:13.5px;line-height:1.6}
+  /* mua "blessing ngẫu nhiên" ở merchant mở hộp này ngay khi hộp merchant còn đó
+     -> phải nổi lên trên, không thì bảng chọn nằm khuất phía sau */
+  #offer{z-index:45}
   #offer .mbox{--tick:var(--rose)} #offer .eyebrow{color:var(--rose)}
   #shop .mbox{--tick:var(--gold);max-width:520px;gap:16px} #shop .eyebrow{color:var(--gold)}
   #over .mbox{--tick:var(--accent);gap:16px} #over .eyebrow{color:var(--accent)}
@@ -354,7 +382,7 @@
   </div>
 
   <div class="botleft">
-    <button class="lvup tick hide" id="lvupBtn"><span class="n">1</span><span class="t">Điểm kỹ năng<br><b>Mở cây kỹ năng</b></span></button>
+    <button class="lvup tick hide" id="lvupBtn"><i class="ring"></i><span class="n">1</span><span class="t">Điểm kỹ năng<br><b>Mở cây kỹ năng</b></span></button>
     <div class="whorow">
       <span class="who" id="whoNm">—</span>
       <span class="whosub" id="whoSub">Cấp 1 · Kiếm sĩ</span>

@@ -38,6 +38,19 @@ Trên Windows có thể double-click `start.bat`.
 - `skinOf(p)` ưu tiên `p.br` (nhánh) nếu server gửi, chưa có thì chia theo `p.s % 3` để mỗi slot một dáng. **Khi làm hệ nhánh cho map1, chỉ cần broadcast thêm trường `br` là ngoại hình tự đổi.**
 - `map1-server.js` không sửa dòng nào.
 
+### Bot tự tìm đường + chỉnh nhịp map
+- **Tìm đường**: tường là hình chữ nhật thẳng trục và không đổi, nên dựng sẵn đồ thị tầm nhìn — 4 góc mỗi tường đẩy ra 26px làm nút (32 nút), `NAVLINK` tính 1 lần lúc khởi động. Lúc chơi: `losClear()` kiểm đường thẳng trước, thông thì đi thẳng (trường hợp thường, không tốn gì); bị chắn mới chạy Dijkstra trên 32 nút — đo được **0.10 ms/lần**.
+- Bot giờ **ngắm mục tiêu nhưng đi theo waypoint** (trước đây dùng chung một góc). Thêm phát hiện kẹt: nhích chưa tới 6px trong 0.5 giây thì tính lại đường, kẹt lần hai thì lách ngang 1.35 rad.
+- Bot **không bắn và không lướt xuyên tường** nữa (`losClear` gác cả hai).
+- Đo thực tế 573 mẫu: chuỗi đứng-yên-sát-tường dài nhất còn **0.4 giây** (trước đó có bot đứng chết một chỗ).
+
+⚠ Lúc đo phải lọc bot đã chết (`al===1 && hp>0`) và bot đang đánh nhau, không thì tưởng nhầm là kẹt tường — lần đo đầu báo "kẹt 24 giây" hoá ra là xác bot chờ hồi sinh.
+
+- **Rương hồi sinh** sau 45 giây (`CHEST_RESPAWN`), đầy lại đúng chỗ cũ.
+- **Quái**: 9 bãi → 12 bãi (thêm 3 bãi lấp khoảng giữa map, trước đây đi giữa map không gặp gì), sĩ số mỗi bãi tăng, tổng ~70 con. Hồi sinh 15s/1 con → **4s/3 con**. Lý do phải tăng mạnh: bot có tìm đường rồi thì dọn map nhanh hơn hẳn — đo ở nhịp cũ thì phút thứ 6 chỉ còn 5 con trên toàn map.
+- **Hộp blessing nổi lên trên hộp merchant** (`#offer{z-index:45}`): mua "blessing ngẫu nhiên" ở merchant bật bảng chọn ngay khi hộp merchant còn mở, cùng `z-index` thì thứ tự DOM quyết định nên bảng chọn nằm khuất phía sau.
+- **Nút lên cấp có hiệu ứng thở** — quầng viền lan ra rồi tan + số nảy sáng, dùng thẻ `<i class="ring">` riêng chứ không phải `::after` (nút đã dùng `::after` cho vạch góc). Có nhánh `prefers-reduced-motion` tắt animation.
+
 ### Cây kỹ năng 48 node — port từ arena cũ sang map 1
 `server.js` chạy cây trên hệ cờ `p.fx` với 30 flag móc vào `dmgTo`/`updatePlayer`/`doSkill`. `map1-server.js` không có hạ tầng đó (`grep -c 'p.fx'` = 0) và dùng mô hình chỉ số khác, nên phải dựng lại toàn bộ hook.
 

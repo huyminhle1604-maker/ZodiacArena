@@ -35,7 +35,11 @@ const MERCHANT_DELAY = 30;         // merchant chỉ xuất hiện sau 30 giây 
 const MERCHANT_ROTATE = 120;       // đổi merchant đang mở mỗi 2 phút
 const STOCK_N = 4;                 // mỗi lượt bày bán 4 món ngẫu nhiên
 const RESPAWN = 8;
-const CAMP_RESPAWN = 15;           // 15 giây mới bù 1 con quái cho 1 bãi
+const CAMP_RESPAWN = 4;            // 4 giây một lượt hồi sinh quái
+const CAMP_BURST = 3;              // mỗi lượt bù 3 con cho 3 bãi khác nhau
+                                   // (~45 con/phút — đo thực tế: 6 người dọn
+                                   //  hết 70 con trong ~6 phút nếu chậm hơn)
+const CHEST_RESPAWN = 45;          // rương mở xong 45 giây thì đầy lại
 
 /* ============================ CLASS ============================ */
 /* Giữ nguyên số liệu của bản chính để cảm giác không lệch. */
@@ -290,15 +294,19 @@ const MBUFFS = ['ari', 'tau', 'gem', 'sco', 'pis'];
 /* ============================ BỐ CỤC MAP ============================ */
 /* Cố định để mọi ván giống nhau về mặt địa hình — dễ so sánh khi test. */
 const CAMPS = [
-  { x: 380, y: 300, r: 150, ty: 'slime', n: 4 },
-  { x: 1180, y: 240, r: 150, ty: 'runner', n: 4 },
-  { x: 2000, y: 340, r: 150, ty: 'caster', n: 3 },
-  { x: 300, y: 900, r: 160, ty: 'brute', n: 2 },
-  { x: 1200, y: 820, r: 190, ty: 'brute', n: 3 },
-  { x: 2080, y: 880, r: 160, ty: 'slime', n: 5 },
-  { x: 520, y: 1360, r: 150, ty: 'caster', n: 3 },
-  { x: 1400, y: 1400, r: 160, ty: 'runner', n: 5 },
-  { x: 2100, y: 1340, r: 150, ty: 'brute', n: 2 }
+  { x: 380, y: 300, r: 150, ty: 'slime', n: 7 },
+  { x: 1180, y: 240, r: 150, ty: 'runner', n: 7 },
+  { x: 2000, y: 340, r: 150, ty: 'caster', n: 5 },
+  { x: 300, y: 900, r: 160, ty: 'brute', n: 4 },
+  { x: 1200, y: 820, r: 190, ty: 'brute', n: 5 },
+  { x: 2080, y: 880, r: 160, ty: 'slime', n: 8 },
+  { x: 520, y: 1360, r: 150, ty: 'caster', n: 5 },
+  { x: 1400, y: 1400, r: 160, ty: 'runner', n: 8 },
+  { x: 2100, y: 1340, r: 150, ty: 'brute', n: 4 },
+  /* ba bãi mới lấp khoảng trống giữa map — trước đây đi giữa map không gặp gì */
+  { x: 1180, y: 560, r: 150, ty: 'slime', n: 6 },
+  { x: 760, y: 1120, r: 150, ty: 'runner', n: 6 },
+  { x: 1750, y: 1120, r: 150, ty: 'caster', n: 5 }
 ];
 
 const CHEST_SPOTS = [
@@ -339,6 +347,96 @@ function inWall(x, y, pad) {
 
 function ev(e) { if (ROOM.ev.length < 200) ROOM.ev.push(e); }
 
+/* ============================ TÌM ĐƯỜNG CHO BOT ============================ */
+/* Tường là hình chữ nhật thẳng trục và không bao giờ đổi, nên dựng sẵn một
+ * đồ thị tầm nhìn: các nút là 4 góc của mỗi tường đẩy ra ngoài NAV_PAD.
+ * Chạy 1 lần lúc khởi động; lúc chơi chỉ Dijkstra trên ~48 nút khi nào
+ * đường thẳng tới đích bị chắn. */
+const NAV_PAD = 26;
+
+/* Đoạn thẳng a->b có xuyên tường không (lấy mẫu theo bước ~14px). */
+function losClear(ax, ay, bx, by, pad) {
+  pad = pad == null ? 14 : pad;
+  const dx = bx - ax, dy = by - ay;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return !inWall(ax, ay, pad);
+  const steps = Math.ceil(len / 14);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    if (inWall(ax + dx * t, ay + dy * t, pad)) return false;
+  }
+  return true;
+}
+
+const NAVPTS = (() => {
+  const out = [];
+  for (const w of WALLS) {
+    const xs = [w.x - NAV_PAD, w.x + w.w + NAV_PAD];
+    const ys = [w.y - NAV_PAD, w.y + w.h + NAV_PAD];
+    for (const x of xs) for (const y of ys) {
+      if (x < 40 || y < 40 || x > MW - 40 || y > MH - 40) continue;
+      if (inWall(x, y, 16)) continue;                 // góc lọt vào tường khác
+      out.push({ x, y });
+    }
+  }
+  return out;
+})();
+
+/* NAVLINK[i] = các nút nhìn thấy được từ nút i, kèm khoảng cách. */
+const NAVLINK = NAVPTS.map((a, i) => {
+  const l = [];
+  for (let j = 0; j < NAVPTS.length; j++) {
+    if (j === i) continue;
+    const b = NAVPTS[j];
+    if (losClear(a.x, a.y, b.x, b.y)) l.push({ j, d: Math.hypot(a.x - b.x, a.y - b.y) });
+  }
+  return l;
+});
+
+/* Trả về mảng waypoint từ (từ) tới (đến). Rỗng = không tìm được đường. */
+function findPath(from, to) {
+  if (losClear(from.x, from.y, to.x, to.y)) return [{ x: to.x, y: to.y }];
+
+  const n = NAVPTS.length;
+  const startLinks = [], endVis = [];
+  for (let i = 0; i < n; i++) {
+    const q = NAVPTS[i];
+    if (losClear(from.x, from.y, q.x, q.y)) startLinks.push({ j: i, d: Math.hypot(from.x - q.x, from.y - q.y) });
+    if (losClear(to.x, to.y, q.x, q.y)) endVis[i] = Math.hypot(to.x - q.x, to.y - q.y);
+  }
+  if (!startLinks.length) return [];
+
+  const D = new Array(n).fill(Infinity), prev = new Array(n).fill(-1), done = new Array(n).fill(false);
+  for (const l of startLinks) if (l.d < D[l.j]) D[l.j] = l.d;
+
+  /* n nhỏ (~48) nên quét tuyến tính, không cần heap */
+  for (; ;) {
+    let u = -1, bd = Infinity;
+    for (let i = 0; i < n; i++) if (!done[i] && D[i] < bd) { bd = D[i]; u = i; }
+    if (u < 0) break;
+    done[u] = true;
+    for (const l of NAVLINK[u]) {
+      const nd = D[u] + l.d;
+      if (nd < D[l.j]) { D[l.j] = nd; prev[l.j] = u; }
+    }
+  }
+
+  let best = -1, bestCost = Infinity;
+  for (let i = 0; i < n; i++) {
+    if (endVis[i] == null || D[i] === Infinity) continue;
+    const c = D[i] + endVis[i];
+    if (c < bestCost) { bestCost = c; best = i; }
+  }
+  if (best < 0) return [];
+
+  const path = [];
+  for (let i = best; i >= 0; i = prev[i]) path.unshift({ x: NAVPTS[i].x, y: NAVPTS[i].y });
+  path.push({ x: to.x, y: to.y });
+  return path;
+}
+
+
+
 /* ============================ PHÒNG ============================ */
 function makeRoom() {
   return {
@@ -360,7 +458,7 @@ function resetWorld() {
   ROOM.gates = []; ROOM.meteors = []; ROOM.results = null;
   ROOM.bossUp = false; ROOM.bossDead = false;
   ROOM.merchantOpen = -1; ROOM.merchantT = 0; ROOM.merchantRot = 0; ROOM.stock = [];
-  ROOM.chests = CHEST_SPOTS.map((s, i) => ({ id: i, x: s.x, y: s.y, open: false, prog: 0, by: -1 }));
+  ROOM.chests = CHEST_SPOTS.map((s, i) => ({ id: i, x: s.x, y: s.y, open: false, prog: 0, by: -1, rt: 0 }));
   for (const c of CAMPS) for (let i = 0; i < c.n; i++) spawnAtCamp(c);
 }
 
@@ -398,7 +496,7 @@ function makePlayer(ws, nm, cls, slot, bot, sign) {
     opening: -1, openProg: 0, pending: null,
     inMerchant: false,
     in: { up: 0, dn: 0, lf: 0, rt: 0, aim: 0, fire: 0 },
-    bt: { tgt: null, think: 0, wx: 0, wy: 0 }   // bot state
+    bt: { tgt: null, think: 0, wx: 0, wy: 0, path: [], stuck: 0, mvT: 0, lx: 0, ly: 0, side: 0, dodge: 0 }   // bot state
   };
   recompute(p);
   p.hp = p.mhp; p.mp = p.mmp;
@@ -1190,7 +1288,7 @@ function updatePlayer(p) {
     p.opening = near; p.openProg += DT;
     if (p.openProg >= 1.2) {
       const c = ROOM.chests[near];
-      c.open = true; p.openProg = 0; p.opening = -1;
+      c.open = true; c.rt = CHEST_RESPAWN; p.openProg = 0; p.opening = -1;
       openChest(p, c);
     }
   } else if (!p.in.use) { p.openProg = 0; p.opening = -1; }
@@ -1414,25 +1512,63 @@ function updateBot(p) {
     }
     bt.tgt = best; bt.kind = kind;
     if (!best) { bt.wx = rnd(100, MW - 100); bt.wy = rnd(100, MH - 100); }
+
+    /* Tính lại đường đi mỗi lần nghĩ. Đường thẳng thông thì findPath trả về
+       đúng 1 điểm là đích, nên trường hợp thường không tốn gì. */
+    const goal = bt.tgt || { x: bt.wx, y: bt.wy };
+    bt.path = findPath(p, goal);
+    bt.stuck = 0;
   }
 
   const t = bt.tgt || { x: bt.wx, y: bt.wy };
   const d = dist(t, p);
-  const a = Math.atan2(t.y - p.y, t.x - p.x);
-  p.in.aim = a;
+  /* ngắm luôn vào mục tiêu, còn chân thì đi theo waypoint */
+  p.in.aim = Math.atan2(t.y - p.y, t.x - p.x);
+
+  /* bỏ waypoint đã tới nơi */
+  while (bt.path && bt.path.length > 1 && dist(bt.path[0], p) < 26) bt.path.shift();
+  const wp = (bt.path && bt.path.length) ? bt.path[0] : t;
+  const a = Math.atan2(wp.y - p.y, wp.x - p.x);
 
   const wantRange = bt.kind === 'foe' ? (CLASSES[p.cls].kind === 'melee' ? 40 : 220) : 20;
-  const go = d > wantRange;
-  p.in.up = go && Math.sin(a) < -0.25 ? 1 : 0;
-  p.in.dn = go && Math.sin(a) > 0.25 ? 1 : 0;
-  p.in.lf = go && Math.cos(a) < -0.25 ? 1 : 0;
-  p.in.rt = go && Math.cos(a) > 0.25 ? 1 : 0;
-  p.in.fire = (bt.kind === 'foe' && d < (CLASSES[p.cls].kind === 'melee' ? 55 : 300)) ? 1 : 0;
+  /* chỉ dừng khi đã ở waypoint CUỐI — còn đang đi vòng thì cứ đi tiếp */
+  const lastLeg = !bt.path || bt.path.length <= 1;
+  const go = lastLeg ? d > wantRange : true;
+
+  /* kẹt: nhích chưa tới 6px trong 0.5 giây tuy vẫn đang cố đi -> tính lại đường,
+     và né sang bên để thoát góc tường */
+  if (go) {
+    bt.mvT = (bt.mvT || 0) + DT;
+    if (bt.mvT >= 0.5) {
+      const moved = Math.hypot(p.x - (bt.lx ?? p.x), p.y - (bt.ly ?? p.y));
+      if (moved < 6) {
+        bt.stuck = (bt.stuck || 0) + 1;
+        bt.path = findPath(p, t);
+        if (bt.stuck >= 2) {                       // vẫn kẹt -> lách ngang
+          bt.side = bt.side || (Math.random() < 0.5 ? 1 : -1);
+          bt.dodge = 0.6;
+          bt.stuck = 0;
+        }
+      } else { bt.stuck = 0; bt.side = 0; }
+      bt.lx = p.x; bt.ly = p.y; bt.mvT = 0;
+    }
+  } else { bt.mvT = 0; bt.stuck = 0; bt.lx = p.x; bt.ly = p.y; }
+
+  let mvA = a;
+  if (bt.dodge > 0) { bt.dodge -= DT; mvA = a + (bt.side || 1) * 1.35; }
+
+  p.in.up = go && Math.sin(mvA) < -0.25 ? 1 : 0;
+  p.in.dn = go && Math.sin(mvA) > 0.25 ? 1 : 0;
+  p.in.lf = go && Math.cos(mvA) < -0.25 ? 1 : 0;
+  p.in.rt = go && Math.cos(mvA) > 0.25 ? 1 : 0;
+  const canSee = bt.kind === 'foe' && losClear(p.x, p.y, t.x, t.y, 6);
+  p.in.fire = (canSee && d < (CLASSES[p.cls].kind === 'melee' ? 55 : 300)) ? 1 : 0;
   p.in.use = (bt.kind === 'chest' && d < 40) ? 1 : 0;
 
-  if (bt.kind === 'foe' && d < 340 && Math.random() < 0.02) useSkill(p, 'E');
-  if (bt.kind === 'foe' && d < 260 && Math.random() < 0.012) useSkill(p, 'R');
-  if (go && d > 260 && Math.random() < 0.02) doDash(p);
+  if (canSee && d < 340 && Math.random() < 0.02) useSkill(p, 'E');
+  if (canSee && d < 260 && Math.random() < 0.012) useSkill(p, 'R');
+  if (go && d > 260 && Math.random() < 0.02 &&
+      losClear(p.x, p.y, p.x + Math.cos(mvA) * DASH_DIST, p.y + Math.sin(mvA) * DASH_DIST, 10)) doDash(p);
 }
 
 /* ============================ VÒNG LẶP ============================ */
@@ -1509,7 +1645,16 @@ function stepPlaying() {
       for (const e of R.enemies) if (!e.boss && Math.hypot(e.hx - c.x, e.hy - c.y) < 5) n++;
       if (n < c.n) thin.push(c);
     }
-    if (thin.length) spawnAtCamp(pick(thin));
+    /* ưu tiên bãi trống nhiều nhất, mỗi lượt bù tối đa CAMP_BURST con */
+    thin.sort(() => Math.random() - 0.5);
+    for (let i = 0; i < Math.min(CAMP_BURST, thin.length); i++) spawnAtCamp(thin[i]);
+  }
+
+  /* rương mở xong thì đầy lại sau CHEST_RESPAWN giây */
+  for (const c of R.chests) {
+    if (!c.open) continue;
+    c.rt -= DT;
+    if (c.rt <= 0) { c.open = false; c.prog = 0; c.by = -1; ev({ k: 'chestUp', x: c.x, y: c.y }); }
   }
 
   /* blessing rơi ngẫu nhiên toàn map */
