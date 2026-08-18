@@ -319,6 +319,111 @@
         }
       }
     },
+    /* ── ĐÒN ĐÁNH THƯỜNG ─ hero ───────────────────── */
+    /* Kiếm sĩ — cắt một cung ngắn theo hướng ngắm */
+    atkSlash: {
+      dur: .18,
+      draw(f, p) {
+        const r = (f.r || 34) * (.7 + .3 * p), sw = -.9 + 1.8 * ease.out(p), y = f.y - 14;
+        arc(f.x, y, r, f.a + sw - .75, f.a + sw + .1, INK, .95 * (1 - p), 2);
+        arc(f.x, y, r - 4 * PX, f.a + sw - .5, f.a + sw, f.col || CREAM, .8 * (1 - p), 1);
+        px(f.x + Math.cos(f.a + sw) * r, y + Math.sin(f.a + sw) * r * YS, INK, 1 - p, 2);
+      }
+    },
+    /* Xạ thủ — nháy đầu cung + hai hạt giật lùi */
+    atkShot: {
+      dur: .16,
+      draw(f, p) {
+        const a = f.a, x = f.x + Math.cos(a) * 13, y = f.y - 13 + Math.sin(a) * 13 * YS;
+        arc(x, y, 4 * PX * (1 - p) + PX, a - .6, a + .6, CREAM, .95 * (1 - p), 1);
+        px(x + Math.cos(a) * 5, y + Math.sin(a) * 5 * YS, INK, 1 - p, p < .4 ? 2 : 1);
+        for (const s of [-1, 1]) px(x - Math.cos(a) * 6 + s * 3, y - Math.sin(a) * 6 * YS, GOLD, .7 * (1 - p), 1);
+      }
+    },
+    /* Nhà sư — vòng phù nhỏ trước người + hạt bay lên */
+    atkCast: {
+      dur: .22,
+      draw(f, p) {
+        const a = f.a, x = f.x + Math.cos(a) * 12, y = f.y - 16 + Math.sin(a) * 12 * YS;
+        ring(x, y, 5 * PX * (.5 + p), f.col || MINT, .9 * (1 - p), 1);
+        for (let i = 0; i < 4; i++) {
+          const b = i / 4 * TAU + p * 5;
+          px(x + Math.cos(b) * 4 * PX, y + Math.sin(b) * 4 * PX - p * 8, i % 2 ? CREAM : (f.col || MINT), .9 * (1 - p), 1);
+        }
+      }
+    },
+    /* Trung đòn — hạt bắn ngược hướng đánh */
+    impact: {
+      dur: .2,
+      draw(f, p) {
+        const col = f.crit ? '#ffd479' : (f.col || INK), n = f.crit ? 8 : 5;
+        for (let i = 0; i < n; i++) {
+          const a = (f.a || 0) + Math.PI + (rnd(f, i) - .5) * 1.6, d = (4 + rnd(f, i + 3) * 9) * ease.out(p);
+          px(f.x + Math.cos(a) * d, f.y - 10 + Math.sin(a) * d * YS, i % 2 ? col : CREAM, .95 * (1 - p), i % 3 ? 1 : 2);
+        }
+        if (f.crit) ring(f.x, f.y - 10, 6 + 10 * ease.out(p), col, .8 * (1 - p), 1);
+      }
+    },
+
+    /* ── ĐÒN ĐÁNH THƯỜNG ─ quái ──────────────────── */
+    /* Sói — hai vệt răng chéo */
+    monBite: {
+      dur: .22,
+      draw(f, p) {
+        const a = f.a || 0, R = f.r || 16, y = f.y - 8, q = ease.out(p);
+        for (const s of [-1, 1]) {
+          const b = a + s * .5;
+          line(f.x + Math.cos(b) * R * .5, y + Math.sin(b) * R * .5 * YS,
+               f.x + Math.cos(b) * R * (1 + q * .4), y + Math.sin(b) * R * (1 + q * .4) * YS,
+               s > 0 ? INK : '#d46a6a', .95 * (1 - p), 1);
+        }
+      }
+    },
+    /* Quỷ Chuỳ — vòng bụi ép đất + mảnh đá văng */
+    monSmash: {
+      dur: .32,
+      draw(f, p) {
+        const R = (f.r || 22) * (1 + ease.out(p) * 1.4);
+        ring(f.x, f.y, R, SMOKE, .85 * (1 - p), p < .4 ? 2 : 1);
+        disc(f.x, f.y, R * .55, SMOKE, .2 * (1 - p));
+        for (let i = 0; i < 7; i++) {
+          const a = rnd(f, i) * TAU, d = R * (.6 + rnd(f, i + 5) * .5);
+          px(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * YS - ease.out(p) * 14 * rnd(f, i + 2), '#6b6070', .9 * (1 - p), i % 3 ? 1 : 2);
+        }
+      }
+    },
+    /* Slime — keo bắn tung */
+    monSplash: {
+      dur: .26,
+      draw(f, p) {
+        const R = (f.r || 14) * (1 + ease.out(p));
+        ring(f.x, f.y, R, f.col || '#7fd6e8', .8 * (1 - p), 1);
+        for (let i = 0; i < 8; i++) {
+          const a = rnd(f, i) * TAU, d = R * rnd(f, i + 4);
+          px(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d * YS - Math.sin(p * Math.PI) * 9 * rnd(f, i + 7), f.col || '#7fd6e8', .9 * (1 - p), i % 2 ? 1 : 2);
+        }
+      }
+    },
+    /* Oán Linh — vòng phù thu lại rồi bắn */
+    monBolt: {
+      dur: .3,
+      draw(f, p) {
+        const a = f.a || 0, y = f.y - 14, col = f.col || VIOLET;
+        if (p < .6) {
+          const q = p / .6;
+          ring(f.x, y, 14 * (1 - q) + 3, col, .9 * (1 - q * .4), 1);
+          for (let i = 0; i < 5; i++) {
+            const b = i / 5 * TAU + q * 4, d = 14 * (1 - q) + 3;
+            px(f.x + Math.cos(b) * d, y + Math.sin(b) * d, col, .9, 1);
+          }
+        } else {
+          const q = (p - .6) / .4, L = 26 * q;
+          line(f.x, y, f.x + Math.cos(a) * L, y + Math.sin(a) * L * YS, col, .95 * (1 - q), 1);
+          px(f.x + Math.cos(a) * L, y + Math.sin(a) * L * YS, INK, 1 - q, 2);
+        }
+      }
+    },
+
     meteor: {
       dur: 1.4,
       draw(f, p) {
@@ -510,6 +615,7 @@
   function fromEvent(e) {
     if (e.sk && BY_SK[e.sk]) return BY_SK[e.sk](e);
     if (e.k === 'ring' && BY_COL[(e.c || '').toLowerCase()]) return spawn(BY_COL[(e.c || '').toLowerCase()], { x: e.x, y: e.y, r: e.r, a: e.a || 0 });
+    if (e.k === 'slash') return spawn('atkSlash', { x: e.x, y: e.y, a: e.a || 0, r: e.r || 34 });
     if (e.k === 'proc' && K['z_' + e.sign]) return spawn('z_' + e.sign, { x: e.x, y: e.y, a: e.a || -.4 });
     if (e.k === 'crit') return spawn('crit', { x: e.x, y: e.y });
     if (e.k === 'lvl') return spawn('levelUp', { x: e.x, y: e.y });
@@ -520,8 +626,71 @@
     return null;
   }
 
+  /* ── ĐẠN BAY ────────────────────────────────────────
+     Đạn là thực thể của server, vẽ lại mọi frame — không qua danh sách fx.
+     ZAFx.drawProj(ctx, { ty, x, y, a, t }) — ty: arrow | pierce | orbp | eball */
+  const PROJ = {
+    /* mũi tên / đạn thường: thân + mũi nhọn + đuôi, vệt mờ sau */
+    arrow(o) {
+      const a = o.a, c = Math.cos(a), s = Math.sin(a);
+      for (let i = -3; i <= 3; i++) px(o.x + c * i * PX, o.y + s * i * PX, '#e8e0c0', .95, 1);
+      px(o.x + c * 4 * PX, o.y + s * 4 * PX, INK, 1, 2);
+      for (const sd of [-1, 1]) px(o.x - c * 4 * PX - s * sd * PX, o.y - s * 4 * PX + c * sd * PX, GOLD, .9, 1);
+      for (let i = 1; i <= 3; i++) pxd(o.x - c * (5 + i * 2) * PX, o.y - s * (5 + i * 2) * PX, '#c9bfa0', .5 - i * .12, 1);
+    },
+    /* Mũi Xuyên: giáo băng dài, lõi sáng, vệt dài */
+    pierce(o) {
+      const a = o.a, c = Math.cos(a), s = Math.sin(a);
+      for (let i = -6; i <= 6; i++) {
+        px(o.x + c * i * PX, o.y + s * i * PX, Math.abs(i) < 3 ? INK : ICE, .95, 2);
+      }
+      px(o.x + c * 7 * PX, o.y + s * 7 * PX, INK, 1, 3);
+      for (let i = 1; i <= 5; i++) pxd(o.x - c * (7 + i * 2) * PX, o.y - s * (7 + i * 2) * PX, ICE, .6 - i * .1, i < 3 ? 2 : 1);
+    },
+    /* orb / đạn phép: lõi sáng + 4 hạt quay */
+    orbp(o) {
+      const t = (o.t || 0) / 120;
+      px(o.x, o.y, INK, 1, 2);
+      ring(o.x, o.y, 3 * PX, ICE, .8, 1);
+      for (let i = 0; i < 4; i++) {
+        const b = t + i / 4 * TAU;
+        px(o.x + Math.cos(b) * 4 * PX, o.y + Math.sin(b) * 4 * PX, ICE, .9, 1);
+      }
+      const c = Math.cos(o.a), s = Math.sin(o.a);
+      for (let i = 1; i <= 3; i++) pxd(o.x - c * i * 3 * PX, o.y - s * i * 3 * PX, ICE, .45 - i * .1, 1);
+    },
+    /* đạn quái: nhân đỏ, than hồng rịn ra sau */
+    eball(o) {
+      const t = (o.t || 0) / 90, c = Math.cos(o.a), s = Math.sin(o.a);
+      px(o.x, o.y, CREAM, 1, 2);
+      for (let i = 0; i < 5; i++) {
+        const b = t + i / 5 * TAU;
+        px(o.x + Math.cos(b) * 3 * PX, o.y + Math.sin(b) * 3 * PX * .9, '#d46a6a', .9, 1);
+      }
+      for (let i = 1; i <= 4; i++) {
+        const w = Math.sin(t * 2 + i) * PX;
+        pxd(o.x - c * i * 3 * PX - s * w, o.y - s * i * 3 * PX + c * w, i < 3 ? EMBER : '#8a4a3a', .6 - i * .11, 1);
+      }
+    }
+  };
+  function drawProj(ctx, o) {
+    CTX = ctx; PX = Math.max(1, API.PX);
+    const fn = PROJ[o.ty] || PROJ.arrow;
+    const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
+    fn(o);
+    ctx.globalAlpha = 1; ctx.imageSmoothingEnabled = sm;
+  }
+
+  const BASIC = { sw: 'atkSlash', ar: 'atkShot', mk: 'atkCast' };
+  const MON_ATK = { slime: 'monSplash', runner: 'monBite', brute: 'monSmash', caster: 'monBolt' };
+
   API.spawn = spawn; API.update = update; API.draw = draw; API.fromEvent = fromEvent;
   API.sign = (code, o) => spawn('z_' + code, o || {});
+  /* đòn thường: cls 'sw'|'ar'|'mk' · quái 'slime'|'runner'|'brute'|'caster' */
+  API.basic = (cls, o) => spawn(BASIC[cls] || 'atkSlash', o || {});
+  API.monAtk = (ty, o) => spawn(MON_ATK[ty] || 'monBite', o || {});
+  API.BASIC = BASIC; API.MON_ATK = MON_ATK;
+  API.drawProj = drawProj; API.PROJ = Object.keys(PROJ);
   API.SIGNS = SIGNS;
   API.clear = () => list.splice(0); API.count = () => list.length; API.KINDS = Object.keys(K);
   window.ZAFx = API;

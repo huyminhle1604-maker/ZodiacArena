@@ -602,13 +602,18 @@ function handleEv(e){
   if(e.k==='toast'){ maybeToast(e); return; }
   if(e.k==='merchant'){ fx.push({k:'ring',x:e.x,y:e.y,r:70,t:.7,c:'#C9A961'}); return; }
   if(e.k==='down'){ ANIM['p'+e.s]={st:'die',t:performance.now()}; return; }
-  if(e.k==='hit'){ fx.push({k:'num',x:e.x,y:e.y,v:e.d,t:.8,c:e.c?'#ff9a8a':'#ffe9a8'}); return; }
+  if(e.k==='hit'){
+    fx.push({k:'num',x:e.x,y:e.y,v:e.d,t:.8,c:e.c?'#ff9a8a':'#ffe9a8'});
+    if(window.ZAFx) ZAFx.spawn('impact',{x:e.x,y:e.y,a:0,crit:!!e.c});
+    if(window.ZAFx&&e.c&&cur&&cur.E) monAtkNear(e.x,e.y);   /* c=1: người chơi ăn đòn → tìm quái đứng sát */
+    return;
+  }
   /* ZAFx: hiệu ứng riêng cho từng chiêu. lvl và exodus giữ nhánh cũ vì còn kèm toast/flash. */
-  if(window.ZAFx && e.k!=='lvl' && e.k!=='exodus' && ZAFx.fromEvent(e)) return;
+  if(window.ZAFx && e.k!=='lvl' && e.k!=='exodus' && e.k!=='slash' && ZAFx.fromEvent(e)) return;
   if(e.k==='crit'){ fx.push({k:'ring',x:e.x,y:e.y,r:26,t:.25,c:'#ffd479'}); return; }
   if(e.k==='ring'){ fx.push({k:'ring',x:e.x,y:e.y,r:e.r,t:.4,c:e.c||'#fff'}); return; }
   if(e.k==='boom'){ fx.push({k:'boom',x:e.x,y:e.y,r:e.r,t:.5}); return; }
-  if(e.k==='slash'){ fx.push({k:'slash',x:e.x,y:e.y,a:e.a,r:e.r,t:.16}); if(e.s!==undefined) slashAt[e.s]=performance.now(); return; }
+  if(e.k==='slash'){ if(window.ZAFx) ZAFx.spawn('atkSlash',{x:e.x,y:e.y,a:e.a,r:e.r}); else fx.push({k:'slash',x:e.x,y:e.y,a:e.a,r:e.r,t:.16}); if(e.s!==undefined) slashAt[e.s]=performance.now(); return; }
   if(e.k==='dash'){ fx.push({k:'trail',x1:e.x1,y1:e.y1,x2:e.x2,y2:e.y2,t:.3}); return; }
   if(e.k==='die'){ fx.push({k:'ring',x:e.x,y:e.y,r:e.r*1.6,t:.3,c:'#6b7688'}); return; }
   if(e.k==='chest'){ fx.push({k:'ring',x:e.x,y:e.y,r:50,t:.5,c:'#C9A961'}); return; }
@@ -1363,7 +1368,13 @@ function drawEnemies(alpha){
 }
 
 function drawProjs(){
+  var now=performance.now();
   cur.R.forEach(function(p){
+    if(window.ZAFx){
+      /* ty của server: eball | orbp | pierce | (còn lại = mũi tên) */
+      ZAFx.drawProj(ctx,{ty:(p.ty==='eball'||p.ty==='orbp'||p.ty==='pierce')?p.ty:'arrow',x:p.x,y:p.y,a:p.a,t:now});
+      return;
+    }
     ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.a);
     if(p.ty==='eball'){ ctx.fillStyle='#d46a6a'; ctx.beginPath(); ctx.arc(0,0,5,0,7); ctx.fill(); }
     else if(p.ty==='orbp'){ ctx.fillStyle='#8fd4ff'; ctx.beginPath(); ctx.arc(0,0,5,0,7); ctx.fill(); }
@@ -1400,7 +1411,10 @@ function drawPlayers(alpha){
     /* chọn state: đánh > trúng đòn > chạy > đứng */
     var moved=pp?Math.hypot(p.x-pp.x,p.y-pp.y)>0.6:false;
     if(pp&&p.hp<pp.hp) setAnim(id,'hit',now);
-    if(attacking(p)) setAnim(id,'attack',now);
+    if(attacking(p)){
+      setAnim(id,'attack',now);
+      if(window.ZAFx&&p.cls!=='sw'&&now-(atkAt[p.s]||0)>200){ atkAt[p.s]=now; ZAFx.basic(p.cls,{x:x,y:y+11,a:p.a}); }
+    }
     var a=animOf(id,moved?'move':'idle',now);
     var face=Math.cos(p.a)<0?-1:1;
 
@@ -1420,7 +1434,19 @@ function drawPlayers(alpha){
 }
 
 /* suy ra "đang đánh": cận chiến có event slash, tầm xa thì tìm đạn còn sát chủ nhân */
-var slashAt={};
+var slashAt={}, atkAt={};
+/* quái không phát event tấn công: lấy con gần chỗ trúng đòn nhất trong tầm với của nó */
+function monAtkNear(hx,hy){
+  var best=null,bd=1e9;
+  for(var i=0;i<cur.E.length;i++){
+    var e=cur.E[i], d=Math.hypot(e.x-hx,e.y-hy);
+    if(d<e.r+34&&d<bd){ bd=d; best=e; }
+  }
+  if(!best) return;
+  var ty=best.bs?'brute':best.ty;
+  setAnim('e'+best.i,'attack',performance.now());
+  ZAFx.monAtk(ty,{x:best.x,y:best.y+best.r,a:Math.atan2(hy-best.y,hx-best.x),r:best.r});
+}
 function attacking(p){
   if(slashAt[p.s]&&performance.now()-slashAt[p.s]<180) return true;
   for(var i=0;i<cur.R.length;i++){
