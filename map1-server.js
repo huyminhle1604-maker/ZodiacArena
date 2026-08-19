@@ -964,7 +964,7 @@ function onEnemyDown(e, src) {
   /* Bọ Cạp slot R: chết vì độc thì nổ lan */
   if (src && src.slot !== undefined && src.bl.r === 'sco' && e.poison > 0) {
     for (const o of ROOM.enemies) if (dist(o, e) < 150) applyPoison(o, 5);
-    ev({ k: 'ring', x: e.x, y: e.y, r: 150, c: '#7bd67b' });
+    ev({ k: 'ring', x: e.x, y: e.y, r: 150, c: '#7bd67b', sk: 'poison' });
   }
   if (src && src.combo === 'sco') healP(src, src.mhp * 0.15);
 }
@@ -1186,18 +1186,18 @@ function doE(p, scale) {
     const times = p.fx.whirl2 ? 2 : 1;     // Xoáy Lốc: Chém Xoay đánh 2 lần
     let n = 0;
     for (let i = 0; i < times; i++) n = aoe(p, p.x, p.y, r, p.atk * 1.8 * power * scale);
-    ev({ k: 'ring', x: p.x, y: p.y, r, c: '#ffd479' });
+    ev({ k: 'ring', x: p.x, y: p.y, r, c: '#ffd479', sk: 'whirl', a: p.aim, x2: times > 1 ? 1 : 0 });
     if (p.bl.e === 'tau') for (const e of ROOM.enemies) if (dist(e, p) < r) { e.slow = 2; kb(e, p, 26); }
     dealt.v = n * p.atk * 1.8;
   } else if (p.cls === 'ar') {
     let rngM = p.bl.e === 'sag' ? 1.5 : 1;
     shoot(p, p.aim, p.atk * 2.4 * power * scale, { sp: 14, life: p.rng * rngM / 14 / 30, ty: 'pierce', pierce: 4, boom: p.fx.trapBoom ? 1 : 0 });
-    ev({ k: 'slash', x: p.x, y: p.y, a: p.aim, r: 60, s: p.slot });
+    ev({ k: 'slash', x: p.x, y: p.y, a: p.aim, r: 60, s: p.slot, sk: 'pierce' });
   } else {
     let r = 120; if (p.bl.e === 'ari') r *= 1.5;
     const cx = p.x + Math.cos(p.aim) * 70, cy = p.y + Math.sin(p.aim) * 70;
     const n = aoe(p, cx, cy, r, p.atk * 1.6 * power * scale);
-    ev({ k: 'ring', x: cx, y: cy, r, c: '#8fd4ff' });
+    ev({ k: 'ring', x: cx, y: cy, r, c: '#8fd4ff', sk: 'smite' });
     if (p.bl.e === 'tau') for (const e of ROOM.enemies) if (dist(e, { x: cx, y: cy }) < r) { e.slow = 2; kb(e, p, 30); }
     dealt.v = n * p.atk * 1.6;
   }
@@ -1210,19 +1210,23 @@ function doE(p, scale) {
   }
 }
 
+/* ký hiệu cung gửi kèm hiệu ứng Lời Nguyền (effects.js vẽ glyph) */
+const SIGN_G = { ari:'♈', tau:'♉', gem:'♊', can:'♋', leo:'♌', vir:'♍',
+                 lib:'♎', sco:'♏', sag:'♐', cap:'♑', aqu:'♒', pis:'♓' };
+
 /* Nhánh B đổi hẳn R sang chiêu riêng — nội dung lấy từ arena cũ. */
 function doR_B(p, power) {
   if (p.cls === 'sw') {                       // Cuồng Nộ
     p.frenzy = 6;
-    ev({ k: 'ring', x: p.x, y: p.y, r: 70, c: '#ff5c6c' });
+    ev({ k: 'ring', x: p.x, y: p.y, r: 70, c: '#ff5c6c', sk: 'frenzy' });
     ev({ k: 'toast', s: p.slot, m: 'Cuồng Nộ! +25% sát thương và tốc đánh trong 6 giây' });
   } else if (p.cls === 'ar') {                // Nỏ Liên Thanh
     p.volley = { n: 6, t: 0, gap: 0.09, dmg: p.atk * 1.1 * power };
-    ev({ k: 'cast', x: p.x, y: p.y, s: p.slot });
+    ev({ k: 'cast', x: p.x, y: p.y, s: p.slot, sk: 'volley', a: p.aim });
   } else {                                    // Lời Nguyền
     const cx = p.x + Math.cos(p.aim) * 150, cy = p.y + Math.sin(p.aim) * 150;
     ROOM.pools.push({ ty: 'curse', x: cx, y: cy, r: 110, t: 5, own: p.slot });
-    ev({ k: 'ring', x: cx, y: cy, r: 110, c: '#c58cff' });
+    ev({ k: 'ring', x: cx, y: cy, r: 110, c: '#c58cff', sk: 'curse', g: SIGN_G[p.bl.r] || '' });
   }
 }
 
@@ -1239,14 +1243,14 @@ function doR(p) {
     p.shield = Math.min(140, p.shield + (60 + (p.fx.shieldPlus || 0)) * power); p.shieldT = 8;
     const R = p.fx.tauntPlus ? 260 : 200;
     for (const e of ROOM.enemies) if (dist(e, p) < R) { e.taunt = 4; e.tauntBy = p.slot; }
-    ev({ k: 'ring', x: p.x, y: p.y, r: R, c: '#ffe9a8' });
+    ev({ k: 'ring', x: p.x, y: p.y, r: R, c: '#ffe9a8', sk: 'taunt' });
   } else if (p.cls === 'ar') {
     const cx = p.x + Math.cos(p.aim) * 180, cy = p.y + Math.sin(p.aim) * 180;
     let r = 140;
     const n = aoe(p, cx, cy, r, p.atk * 2.6 * power);
     if (p.bl.r === 'leo') aoe(p, cx, cy, r, p.atk * 0.2 * n);
     if (p.bl.r === 'sag') { shoot(p, p.aim + 0.25, p.atk * 1.6, { sp: 12, life: 1, pierce: 2 }); shoot(p, p.aim - 0.25, p.atk * 1.6, { sp: 12, life: 1, pierce: 2 }); }
-    ev({ k: 'ring', x: cx, y: cy, r, c: '#c8f08a' });
+    ev({ k: 'ring', x: cx, y: cy, r, c: '#c8f08a', sk: 'trap' });
   } else {
     /* Chữa Lành — Hồi Sinh Nhanh (+20%), Suối Nguồn (×2, xoá độc, máu thừa thành khiên),
        Lá Chắn Sinh Mệnh (+20 khiên mỗi lần hồi) */
@@ -1265,7 +1269,7 @@ function doR(p) {
       if (p.fx.fountain) { q.poisonT = 0; q.poison = 0; }
       if (p.fx.healShield) { q.shield = Math.min(140, q.shield + p.fx.healShield); q.shieldT = 8; }
     }
-    ev({ k: 'ring', x: p.x, y: p.y, r: 120, c: '#9dffb0' });
+    ev({ k: 'ring', x: p.x, y: p.y, r: 120, c: '#9dffb0', sk: 'heal', sh: p.fx.fountain ? 1 : 0 });
   }
   if (p.bl.r === 'lib') { const avg = (p.hp / p.mhp + p.mp / p.mmp) / 2; p.hp = p.mhp * avg; p.mp = p.mmp * avg; }
   if (p.bl.r === 'gem') p.echoR = 2;   // lặp lại sau 2 giây
