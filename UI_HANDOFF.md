@@ -1,5 +1,16 @@
 # Handoff — Hệ chữ & UI cho `map1.html`
 
+> ⚠ **Tài liệu này ĐÃ BỊ THAY một phần.** Bản "Thiên Bàn" mô tả dưới đây đã được
+> thay bằng hệ pixel **"THÁNH TÍCH"** (`design_handoff_pixel_hud`, phương án 1b):
+> font bitmap Silkscreen / Press Start 2P, viền 2px không bo góc, thanh chia ô rời,
+> và **bố cục HUD đổi hẳn** sang kiểu Hades — máu + ví về góc trên trái, blessing
+> thành dải huy hiệu dọc bên trái, hàng kỹ năng ra giữa dưới (LMB · E · R · SHF),
+> minimap xuống góc dưới phải. Cây kỹ năng quay về **đồ thị** thay cho danh sách dọc.
+>
+> Mục 1 (font), mục 4 (bố cục HUD) và mục 5 ở dưới **không còn đúng**. Phần còn
+> đúng: nguyên tắc "chỉ đổi lớp trình bày, không đụng gameplay / netcode /
+> `map1-server.js`". Xem `TIEN-DO.md` mục "HUD & UI pixel" để biết chỗ nào đã làm khác.
+
 Áp bản thiết kế trong project design (`Zodiac Arena UI.dc.html`) vào `map1.html`.
 Đây là **thay lớp trình bày**: font, màu, khung, nhịp. Không đổi gameplay, không đổi
 `map1-server.js`, không đổi netcode, không đổi bố cục HUD (đồng hồ trên giữa, minimap
