@@ -19,6 +19,14 @@ const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
 
+/* Hai biến thể địa hình của map 1 — server bốc một cái mỗi ván.
+ * Cùng API: ROWS (lưới 75x50 ô 32px), solid(), surfaceAt(), và toạ độ
+ * boss / rương / bãi quái / merchant / cổng đã kiểm tra nằm trên sàn. */
+const LAYOUTS = {
+  crypt: require('./assets/map1-layout.js'),
+  ruin: require('./assets/map1-ruin-layout.js')
+};
+
 const PORT = Number(process.env.PORT) || 8081;
 const ROOT = __dirname;
 
@@ -381,42 +389,44 @@ const ETYPES = {
 const MBUFFS = ['ari', 'tau', 'gem', 'sco', 'pis'];
 
 /* ============================ BỐ CỤC MAP ============================ */
-/* Cố định để mọi ván giống nhau về mặt địa hình — dễ so sánh khi test. */
-const CAMPS = [
-  { x: 380, y: 300, r: 150, ty: 'slime', n: 7 },
-  { x: 1180, y: 240, r: 150, ty: 'runner', n: 7 },
-  { x: 2000, y: 340, r: 150, ty: 'caster', n: 5 },
-  { x: 300, y: 900, r: 160, ty: 'brute', n: 4 },
-  { x: 1200, y: 820, r: 190, ty: 'brute', n: 5 },
-  { x: 2080, y: 880, r: 160, ty: 'slime', n: 8 },
-  { x: 520, y: 1360, r: 150, ty: 'caster', n: 5 },
-  { x: 1400, y: 1400, r: 160, ty: 'runner', n: 8 },
-  { x: 2100, y: 1340, r: 150, ty: 'brute', n: 4 },
-  /* ba bãi mới lấp khoảng trống giữa map — trước đây đi giữa map không gặp gì */
-  { x: 1180, y: 560, r: 150, ty: 'slime', n: 6 },
-  { x: 760, y: 1120, r: 150, ty: 'runner', n: 6 },
-  { x: 1750, y: 1120, r: 150, ty: 'caster', n: 5 }
+/* Địa hình KHÔNG còn là danh sách tường rời — mỗi ván server bốc một trong
+ * hai biến thể trong assets/ và lấy luôn lưới va chạm + mọi toạ độ đặt vật thể
+ * của biến thể đó. Bốc ở server chứ không ở client, nếu không 6 người sẽ thấy
+ * 6 map khác nhau. */
+let MAP = LAYOUTS.ruin;            // biến thể đang chạy, đặt lại ở resetWorld()
+let CAMPS = [];                    // {x,y,r,ty,n}
+let CHEST_SPOTS = [];              // {x,y}
+let MERCHANTS = [];                // {x,y}
+let GATE_SPOTS = [];               // {x,y} — cổng thoát lúc di tản
+let SPAWNS = [];                   // {x,y} — chỗ đứng đầu ván, rải đều
+let BOSS_POS = { x: 1200, y: 800 };
+
+/* File layout chỉ cho toạ độ và bán kính bãi quái, không nói loại quái.
+ * Bảng này rải loại theo thứ tự bãi để mỗi map vẫn đủ 4 loại xen kẽ —
+ * tổng ~70-77 con, đúng mật độ của bản cũ. */
+const CAMP_MIX = [
+  { ty: 'slime', n: 7 }, { ty: 'runner', n: 7 }, { ty: 'caster', n: 5 }, { ty: 'brute', n: 4 },
+  { ty: 'slime', n: 8 }, { ty: 'runner', n: 6 }, { ty: 'caster', n: 5 }, { ty: 'brute', n: 5 },
+  { ty: 'slime', n: 6 }, { ty: 'runner', n: 8 }, { ty: 'caster', n: 5 }, { ty: 'brute', n: 4 },
+  { ty: 'slime', n: 7 }
 ];
 
-const CHEST_SPOTS = [
-  { x: 200, y: 180 }, { x: 760, y: 420 }, { x: 1500, y: 180 }, { x: 2220, y: 200 },
-  { x: 900, y: 1080 }, { x: 1750, y: 620 }, { x: 260, y: 620 }, { x: 2260, y: 620 },
-  { x: 620, y: 1120 }, { x: 1980, y: 1120 }, { x: 1180, y: 1560 }, { x: 160, y: 1420 },
-  { x: 2300, y: 1500 }, { x: 1620, y: 1180 }, { x: 420, y: 760 }, { x: 1360, y: 560 }
-];
-
-const MERCHANTS = [
-  { x: 620, y: 560 }, { x: 1820, y: 460 }, { x: 1240, y: 1240 }
-];
-
-const BOSS_POS = { x: 1200, y: 800 };
-
-const WALLS = [
-  { x: 700, y: 640, w: 40, h: 260 }, { x: 1560, y: 640, w: 40, h: 260 },
-  { x: 900, y: 500, w: 300, h: 40 }, { x: 1300, y: 1080, w: 300, h: 40 },
-  { x: 300, y: 1080, w: 40, h: 240 }, { x: 2020, y: 1080, w: 40, h: 240 },
-  { x: 1080, y: 260, w: 240, h: 40 }, { x: 1080, y: 1340, w: 240, h: 40 }
-];
+/* Áp một biến thể vào các bảng ở trên. Gọi trong resetWorld(), trước khi
+ * dựng lại rương / quái / merchant. */
+function applyLayout(key) {
+  MAP = LAYOUTS[key] || LAYOUTS.ruin;
+  const L = MAP;
+  BOSS_POS = { x: L.BOSS_POS[0], y: L.BOSS_POS[1] };
+  CHEST_SPOTS = L.CHEST_SPOTS.map(s => ({ x: s[0], y: s[1] }));
+  MERCHANTS = L.MERCHANTS.map(s => ({ x: s[0], y: s[1] }));
+  GATE_SPOTS = L.GATES.map(s => ({ x: s[0], y: s[1] }));
+  CAMPS = L.CAMPS.map((c, i) => {
+    const m = CAMP_MIX[i % CAMP_MIX.length];
+    return { x: c.x, y: c.y, r: c.r, ty: m.ty, n: m.n };
+  });
+  buildNav();
+  SPAWNS = pickSpawns();
+}
 
 /* ============================ TIỆN ÍCH ============================ */
 let UID = 1;
@@ -426,24 +436,64 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 function angDiff(a, b) { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; }
 
+/* Va chạm: tra lưới 32px của biến thể đang chạy. `pad` là bán kính thân —
+ * lấy mẫu 9 điểm (tâm, 4 cạnh, 4 góc) của hộp bao. Phải có cả 4 điểm giữa
+ * cạnh: chỉ lấy 4 góc thì một ô cản nằm thẳng ngay bên phải sẽ lọt qua khe
+ * giữa hai góc. Ngoài rìa bản đồ tính là đặc (lưới có viền '#'). */
 function inWall(x, y, pad) {
-  pad = pad || 0;
-  for (const w of WALLS) {
-    if (x > w.x - pad && x < w.x + w.w + pad && y > w.y - pad && y < w.y + w.h + pad) return true;
-  }
-  return false;
+  const L = MAP;
+  if (L.solid(x, y)) return true;
+  if (!pad) return false;
+  return L.solid(x - pad, y) || L.solid(x + pad, y) ||
+         L.solid(x, y - pad) || L.solid(x, y + pad) ||
+         L.solid(x - pad, y - pad) || L.solid(x + pad, y - pad) ||
+         L.solid(x - pad, y + pad) || L.solid(x + pad, y + pad);
 }
 
 function ev(e) { if (ROOM.ev.length < 200) ROOM.ev.push(e); }
 
-/* ============================ TÌM ĐƯỜNG CHO BOT ============================ */
-/* Tường là hình chữ nhật thẳng trục và không bao giờ đổi, nên dựng sẵn một
- * đồ thị tầm nhìn: các nút là 4 góc của mỗi tường đẩy ra ngoài NAV_PAD.
- * Chạy 1 lần lúc khởi động; lúc chơi chỉ Dijkstra trên ~48 nút khi nào
- * đường thẳng tới đích bị chắn. */
-const NAV_PAD = 26;
+/* Mô tả địa hình gửi cho client để dựng lớp nền. Chỉ gửi khi vào phòng và khi
+ * bốc lại biến thể — ~4KB, không nằm trong gói state mỗi tick. */
+function mapPacket() {
+  return {
+    t: 'map', skin: MAP.key, cell: MAP.CELL, rows: MAP.ROWS,
+    boss: [BOSS_POS.x, BOSS_POS.y],
+    camps: CAMPS.map(c => [c.x, c.y, c.r]),
+    chests: CHEST_SPOTS.map(c => [c.x, c.y]),
+    merchants: MERCHANTS.map(m => [m.x, m.y]),
+    gates: GATE_SPOTS.map(g => [g.x, g.y])
+  };
+}
 
-/* Đoạn thẳng a->b có xuyên tường không (lấy mẫu theo bước ~14px). */
+/* Phát địa hình mới cho mọi người đang trong phòng. */
+function broadcastMap() {
+  const s = JSON.stringify(mapPacket());
+  for (const p of ROOM.players) if (!p.bot && p.ws) send(p.ws, s);
+}
+
+/* ============================ TÌM ĐƯỜNG CHO BOT ============================ */
+/* Địa hình giờ là lưới 75x50 chứ không phải vài hình chữ nhật, nên đồ thị tầm
+ * nhìn theo góc tường không còn dùng được. Thay bằng A* trên chính lưới đó
+ * (3750 ô — quét hết cũng chỉ tốn vài chục micro giây), rồi rút gọn đường bằng
+ * kiểm tra tầm nhìn để bot đi theo đường chéo mượt thay vì bò từng ô. */
+const NAV_PAD = 14;                 // bán kính thân bot khi xét ô đi được
+
+let NAV_OK = null;                  // Uint8Array: 1 = ô đi được (đã trừ NAV_PAD)
+let NAV_W = 0, NAV_H = 0, NAV_CELL = 32;
+
+function buildNav() {
+  const L = MAP;
+  NAV_W = L.GW; NAV_H = L.GH; NAV_CELL = L.CELL;
+  NAV_OK = new Uint8Array(NAV_W * NAV_H);
+  for (let gy = 0; gy < NAV_H; gy++) {
+    for (let gx = 0; gx < NAV_W; gx++) {
+      const cx = gx * NAV_CELL + NAV_CELL / 2, cy = gy * NAV_CELL + NAV_CELL / 2;
+      NAV_OK[gy * NAV_W + gx] = inWall(cx, cy, NAV_PAD) ? 0 : 1;
+    }
+  }
+}
+
+/* Đoạn thẳng a->b có xuyên vật cản không (lấy mẫu theo bước ~14px). */
 function losClear(ax, ay, bx, by, pad) {
   pad = pad == null ? 14 : pad;
   const dx = bx - ax, dy = by - ay;
@@ -457,79 +507,135 @@ function losClear(ax, ay, bx, by, pad) {
   return true;
 }
 
-const NAVPTS = (() => {
-  const out = [];
-  for (const w of WALLS) {
-    const xs = [w.x - NAV_PAD, w.x + w.w + NAV_PAD];
-    const ys = [w.y - NAV_PAD, w.y + w.h + NAV_PAD];
-    for (const x of xs) for (const y of ys) {
-      if (x < 40 || y < 40 || x > MW - 40 || y > MH - 40) continue;
-      if (inWall(x, y, 16)) continue;                 // góc lọt vào tường khác
-      out.push({ x, y });
+/* Ô đi được gần nhất quanh một điểm — dùng khi đích nằm sát mép vật cản. */
+function navCellNear(x, y) {
+  const gx = clamp((x / NAV_CELL) | 0, 0, NAV_W - 1);
+  const gy = clamp((y / NAV_CELL) | 0, 0, NAV_H - 1);
+  if (NAV_OK[gy * NAV_W + gx]) return gy * NAV_W + gx;
+  for (let r = 1; r <= 4; r++) {
+    for (let oy = -r; oy <= r; oy++) for (let ox = -r; ox <= r; ox++) {
+      if (Math.max(Math.abs(ox), Math.abs(oy)) !== r) continue;
+      const nx = gx + ox, ny = gy + oy;
+      if (nx < 0 || ny < 0 || nx >= NAV_W || ny >= NAV_H) continue;
+      if (NAV_OK[ny * NAV_W + nx]) return ny * NAV_W + nx;
     }
   }
-  return out;
-})();
+  return -1;
+}
 
-/* NAVLINK[i] = các nút nhìn thấy được từ nút i, kèm khoảng cách. */
-const NAVLINK = NAVPTS.map((a, i) => {
-  const l = [];
-  for (let j = 0; j < NAVPTS.length; j++) {
-    if (j === i) continue;
-    const b = NAVPTS[j];
-    if (losClear(a.x, a.y, b.x, b.y)) l.push({ j, d: Math.hypot(a.x - b.x, a.y - b.y) });
-  }
-  return l;
-});
+/* Bộ đệm A* cấp phát một lần, dùng lại mỗi lượt gọi. */
+const A_G = new Float32Array(75 * 50), A_F = new Float32Array(75 * 50);
+const A_PREV = new Int32Array(75 * 50), A_STATE = new Uint8Array(75 * 50);
+let A_STAMP = 0;
+const A_SEEN = new Int32Array(75 * 50);
 
 /* Trả về mảng waypoint từ (từ) tới (đến). Rỗng = không tìm được đường. */
 function findPath(from, to) {
   if (losClear(from.x, from.y, to.x, to.y)) return [{ x: to.x, y: to.y }];
+  if (!NAV_OK) return [];
 
-  const n = NAVPTS.length;
-  const startLinks = [], endVis = [];
-  for (let i = 0; i < n; i++) {
-    const q = NAVPTS[i];
-    if (losClear(from.x, from.y, q.x, q.y)) startLinks.push({ j: i, d: Math.hypot(from.x - q.x, from.y - q.y) });
-    if (losClear(to.x, to.y, q.x, q.y)) endVis[i] = Math.hypot(to.x - q.x, to.y - q.y);
-  }
-  if (!startLinks.length) return [];
+  const s = navCellNear(from.x, from.y), g = navCellNear(to.x, to.y);
+  if (s < 0 || g < 0) return [];
+  if (s === g) return [{ x: to.x, y: to.y }];
 
-  const D = new Array(n).fill(Infinity), prev = new Array(n).fill(-1), done = new Array(n).fill(false);
-  for (const l of startLinks) if (l.d < D[l.j]) D[l.j] = l.d;
+  const gxT = g % NAV_W, gyT = (g / NAV_W) | 0;
+  A_STAMP++;
+  const open = [s];
+  A_SEEN[s] = A_STAMP; A_STATE[s] = 1; A_G[s] = 0; A_PREV[s] = -1;
+  A_F[s] = Math.hypot(s % NAV_W - gxT, ((s / NAV_W) | 0) - gyT);
 
-  /* n nhỏ (~48) nên quét tuyến tính, không cần heap */
-  for (; ;) {
-    let u = -1, bd = Infinity;
-    for (let i = 0; i < n; i++) if (!done[i] && D[i] < bd) { bd = D[i]; u = i; }
-    if (u < 0) break;
-    done[u] = true;
-    for (const l of NAVLINK[u]) {
-      const nd = D[u] + l.d;
-      if (nd < D[l.j]) { D[l.j] = nd; prev[l.j] = u; }
+  let found = false;
+  while (open.length) {
+    /* danh sách mở hiếm khi quá vài trăm ô nên quét tuyến tính là đủ */
+    let bi = 0;
+    for (let i = 1; i < open.length; i++) if (A_F[open[i]] < A_F[open[bi]]) bi = i;
+    const u = open[bi];
+    open[bi] = open[open.length - 1]; open.pop();
+    if (u === g) { found = true; break; }
+    A_STATE[u] = 2;
+
+    const ux = u % NAV_W, uy = (u / NAV_W) | 0;
+    for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+      if (!ox && !oy) continue;
+      const nx = ux + ox, ny = uy + oy;
+      if (nx < 0 || ny < 0 || nx >= NAV_W || ny >= NAV_H) continue;
+      const v = ny * NAV_W + nx;
+      if (!NAV_OK[v]) continue;
+      /* không cắt góc: đi chéo phải mở cả hai ô kề */
+      if (ox && oy && (!NAV_OK[uy * NAV_W + nx] || !NAV_OK[ny * NAV_W + ux])) continue;
+      if (A_SEEN[v] === A_STAMP && A_STATE[v] === 2) continue;
+      const nd = A_G[u] + (ox && oy ? 1.4142 : 1);
+      if (A_SEEN[v] === A_STAMP && nd >= A_G[v]) continue;
+      A_SEEN[v] = A_STAMP; A_STATE[v] = 1;
+      A_G[v] = nd; A_PREV[v] = u;
+      A_F[v] = nd + Math.hypot(nx - gxT, ny - gyT);
+      open.push(v);
     }
   }
+  if (!found) return [];
 
-  let best = -1, bestCost = Infinity;
-  for (let i = 0; i < n; i++) {
-    if (endVis[i] == null || D[i] === Infinity) continue;
-    const c = D[i] + endVis[i];
-    if (c < bestCost) { bestCost = c; best = i; }
+  /* dựng ngược đường theo ô, đổi ra tâm ô */
+  const cells = [];
+  for (let i = g; i >= 0; i = A_PREV[i]) {
+    cells.unshift({ x: (i % NAV_W) * NAV_CELL + NAV_CELL / 2, y: (((i / NAV_W) | 0)) * NAV_CELL + NAV_CELL / 2 });
+    if (i === s) break;
   }
-  if (best < 0) return [];
+  cells.push({ x: to.x, y: to.y });
 
+  /* rút gọn: bỏ mọi waypoint mà đoạn thẳng vẫn thông */
   const path = [];
-  for (let i = best; i >= 0; i = prev[i]) path.unshift({ x: NAVPTS[i].x, y: NAVPTS[i].y });
-  path.push({ x: to.x, y: to.y });
+  let cur = { x: from.x, y: from.y };
+  let i = 0;
+  while (i < cells.length) {
+    let j = cells.length - 1;
+    while (j > i && !losClear(cur.x, cur.y, cells[j].x, cells[j].y)) j--;
+    if (j <= i) j = i;
+    path.push(cells[j]);
+    cur = cells[j];
+    i = j + 1;
+  }
   return path;
 }
 
+/* Chỗ đứng đầu ván: rải đều trên sàn, xa bệ boss, mỗi người một góc map.
+ * Bản phế tích ưu tiên vành đai đường đất (ký tự ','), hầm mộ thì sàn nào
+ * cũng được — cả hai đều bảo đảm không ai vào ván ngay cạnh boss. */
+function pickSpawns() {
+  const L = MAP, cand = [];
+  const wantRoad = L.ROWS.some(r => r.indexOf(',') >= 0);
+  for (let gy = 0; gy < L.GH; gy++) for (let gx = 0; gx < L.GW; gx++) {
+    const ch = L.ROWS[gy][gx];
+    if (ch === '#') continue;
+    if (wantRoad && ch !== ',') continue;
+    const x = gx * L.CELL + L.CELL / 2, y = gy * L.CELL + L.CELL / 2;
+    if (inWall(x, y, 20)) continue;
+    if (Math.hypot(x - BOSS_POS.x, y - BOSS_POS.y) < 520) continue;
+    cand.push({ x, y });
+  }
+  if (cand.length < MAXP) return [];              // để nơi gọi tự xoay xở
 
+  /* lấy mẫu điểm-xa-nhất: bắt đầu từ ô xa boss nhất rồi mỗi lần thêm ô xa
+     những ô đã chọn nhất — 6 chỗ đứng trải khắp map, không ai chung góc */
+  cand.sort((a, b) => Math.hypot(b.x - BOSS_POS.x, b.y - BOSS_POS.y) - Math.hypot(a.x - BOSS_POS.x, a.y - BOSS_POS.y));
+  const out = [cand[0]];
+  while (out.length < MAXP) {
+    let best = null, bd = -1;
+    for (const c of cand) {
+      let nd = 1e9;
+      for (const o of out) nd = Math.min(nd, Math.hypot(c.x - o.x, c.y - o.y));
+      if (nd > bd) { bd = nd; best = c; }
+    }
+    if (!best) break;
+    out.push(best);
+  }
+  return out;
+}
 
 /* ============================ PHÒNG ============================ */
 function makeRoom() {
   return {
     ph: 'lobby',          // lobby | playing | exodus | over
+    skin: MAP.key,        // crypt | ruin — biến thể địa hình của ván này
     t: 0,                 // giây đã trôi trong phase hiện tại
     players: [], enemies: [], projs: [], chests: [], loot: [],
     pools: [],            // vũng độc / hào quang
@@ -540,9 +646,16 @@ function makeRoom() {
     results: null
   };
 }
+/* Dựng sẵn một biến thể lúc khởi động: người vào sảnh đầu tiên phải nhận được
+   gói địa hình đầy đủ trong `welcome`, chứ không phải bảng rỗng. */
+applyLayout('ruin');
 let ROOM = makeRoom();
 
 function resetWorld() {
+  /* Bốc biến thể địa hình cho ván này. Phải bốc ở đây — client tự random thì
+     6 người sẽ chơi trên 6 map khác nhau. */
+  applyLayout(LAYOUTS[process.env.SKIN] ? process.env.SKIN : (Math.random() < 0.5 ? 'crypt' : 'ruin'));
+  ROOM.skin = MAP.key;
   ROOM.enemies = []; ROOM.projs = []; ROOM.loot = []; ROOM.pools = [];
   ROOM.gates = []; ROOM.meteors = []; ROOM.results = null;
   ROOM.bossUp = false; ROOM.bossDead = false;
@@ -636,9 +749,15 @@ function recompute(p) {
 /* ============================ QUÁI ============================ */
 function spawnAtCamp(c) {
   const b = ETYPES[c.ty];
-  let x, y, tries = 0;
-  do { x = c.x + rnd(-c.r, c.r); y = c.y + rnd(-c.r, c.r); tries++; }
-  while (inWall(x, y, 20) && tries < 20);
+  /* Bãi quái là hình tròn vẽ trên bản thiết kế nên mép nó ăn cả vào lùm cây /
+     đá đặc. Thu dần bán kính rồi mới chịu về đúng tâm bãi — tâm luôn nằm trên
+     sàn — thay vì thả bừa con quái vào trong vật cản. */
+  let x = c.x, y = c.y;
+  for (let tries = 0; tries < 40; tries++) {
+    const k = 1 - tries / 40;
+    const tx = c.x + rnd(-c.r, c.r) * k, ty = c.y + rnd(-c.r, c.r) * k;
+    if (!inWall(tx, ty, 18)) { x = tx; y = ty; break; }
+  }
   ROOM.enemies.push({
     id: UID++, ty: c.ty, x: clamp(x, 30, MW - 30), y: clamp(y, 30, MH - 30),
     hx: c.x, hy: c.y, r: b.r, hp: b.hp, mhp: b.hp, spd: b.spd, dmg: b.dmg,
@@ -1253,6 +1372,7 @@ function updatePlayer(p) {
       p.alive = true; p.hp = p.mhp * 0.6; p.mp = p.mmp * 0.5;
       p.x = clamp(p.x + rnd(-120, 120), 40, MW - 40);
       p.y = clamp(p.y + rnd(-120, 120), 40, MH - 40);
+      if (inWall(p.x, p.y, 12)) unstick(p);         // đừng hồi sinh vào trong lùm cây
       p.iframe = 1.5; p.hitSet = {};
     }
     return;
@@ -1557,7 +1677,14 @@ function updateEnemies() {
     if (!tgt) {
       /* về lại camp */
       const dh = Math.hypot(e.hx - e.x, e.hy - e.y);
-      if (dh > 30) { e.x += (e.hx - e.x) / dh * e.spd * 0.6; e.y += (e.hy - e.y) / dh * e.spd * 0.6; }
+      if (dh > 30) {
+        /* tách trục như lúc đuổi người chơi — đường về camp cũng cắt qua
+           lùm cây / đá đặc, đi thẳng là chui vào trong vật cản */
+        const bx = e.x + (e.hx - e.x) / dh * e.spd * 0.6;
+        const by = e.y + (e.hy - e.y) / dh * e.spd * 0.6;
+        if (!inWall(bx, e.y, 8)) e.x = bx;
+        if (!inWall(e.x, by, 8)) e.y = by;
+      }
       continue;
     }
     const spd = e.spd * (e.slow > 0 ? 0.5 : 1) * (e.buff === 'gem' ? 1.25 : 1);
@@ -1761,8 +1888,11 @@ function stepPlaying() {
   if (R.blessT >= 25) {
     R.blessT = 0;
     if (R.loot.filter(l => l.ty === 'bless').length < 4) {
-      let x, y, tr = 0;
-      do { x = rnd(80, MW - 80); y = rnd(80, MH - 80); tr++; } while (inWall(x, y, 30) && tr < 20);
+      /* sàn chỉ chiếm ~45% bản đồ nên phải thử nhiều lần; hết lượt thì rơi
+         vào một ô rương cho chắc chắn là chỗ đi tới được */
+      let x = 0, y = 0, tr = 0, ok = false;
+      while (tr < 80 && !ok) { x = rnd(80, MW - 80); y = rnd(80, MH - 80); tr++; ok = !inWall(x, y, 24); }
+      if (!ok) { const c = pick(CHEST_SPOTS); x = c.x; y = c.y; }
       dropBless(x, y, null);
       ev({ k: 'toast', s: -1, m: 'Một blessing vừa hiện ra trên bản đồ' });
     }
@@ -1808,13 +1938,10 @@ function stepPlaying() {
 function beginExodus(reason) {
   const R = ROOM;
   R.ph = 'exodus'; R.t = 0;
-  R.gates = [];
-  for (let i = 0; i < 5; i++) {
-    let x, y, tr = 0;
-    do { x = rnd(150, MW - 150); y = rnd(150, MH - 150); tr++; } while (inWall(x, y, 60) && tr < 30);
-    R.gates.push({ id: i, x, y, r: 54 });
-  }
-  ev({ k: 'toast', s: -1, m: '☄ ' + reason + ' — 5 cổng dịch chuyển đã mở! Chạy tới cổng trong 30 giây!' });
+  /* Cổng đứng ở đúng chỗ bản thiết kế đặt vòm đá — không rải ngẫu nhiên nữa,
+     vì hai biến thể đều có sẵn bệ bát giác vẽ ngay dưới chân cổng. */
+  R.gates = GATE_SPOTS.map((g, i) => ({ id: i, x: g.x, y: g.y, r: 54 }));
+  ev({ k: 'toast', s: -1, m: '☄ ' + reason + ' — ' + R.gates.length + ' cổng dịch chuyển đã mở! Chạy tới cổng trong 30 giây!' });
   ev({ k: 'exodus' });
 }
 
@@ -1878,6 +2005,7 @@ function finish() {
 
 function startMatch() {
   resetWorld();
+  broadcastMap();          // biến thể vừa bốc — client dựng lại lớp nền theo gói này
   /* thêm bot cho đủ chỗ */
   const names = ['Bot Lâm', 'Bot Khoa', 'Bot Vy', 'Bot Nam', 'Bot Hạ', 'Bot Trí'];
   const want = Math.min(MAXP, ROOM.players.filter(p => !p.bot).length + BOTS);
@@ -1889,8 +2017,16 @@ function startMatch() {
     bi++;
     ROOM.players.push(b);
   }
+  /* Chỗ đứng đầu ván lấy từ SPAWNS (rải đều, xa boss). Xáo thứ tự để không ai
+     luôn vào ở cùng một góc, và nhích nhẹ để 2 người cùng ô không chồng nhau. */
+  const spots = SPAWNS.slice();
+  for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[spots[i], spots[j]] = [spots[j], spots[i]]; }
+  ROOM.players.forEach((p, i) => {
+    const s = spots[i % spots.length];
+    if (s) { p.x = s.x + rnd(-18, 18); p.y = s.y + rnd(-18, 18); if (inWall(p.x, p.y, 12)) { p.x = s.x; p.y = s.y; } }
+    else { let tr = 0; do { p.x = rnd(150, MW - 150); p.y = rnd(150, MH - 150); tr++; } while (inWall(p.x, p.y, 16) && tr < 60); }
+  });
   for (const p of ROOM.players) {
-    p.x = rnd(150, MW - 150); p.y = rnd(150, MH - 150);
     p.hp = p.mhp; p.mp = p.mmp; p.alive = true; p.escaped = false;
     p.xu = 0; p.token = 0; p.lv = 1; p.xp = 0; p.xn = 40;
     p.bonusHp = 0; p.bonusAtk = 0;
@@ -1931,7 +2067,7 @@ function snapshot(forSlot) {
   }));
 
   const out = {
-    t: 'state', ph: R.ph,
+    t: 'state', ph: R.ph, skin: R.skin,
     tm: Math.max(0, Math.round(((R.ph === 'playing' ? MATCH_TIME : EXODUS_TIME) - R.t) * 10) / 10),
     P, E,
     R: inLobby ? [] : R.projs.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), ty: p.ty, a: Math.round(Math.atan2(p.vy, p.vx) * 100) / 100, o: p.own })),
@@ -2004,7 +2140,8 @@ server.on('upgrade', (req, sock) => {
   sock.on('error', () => onClose(ws));
   send(ws, JSON.stringify({
     t: 'welcome', maxp: MAXP,
-    cfg: { MW, MH, MATCH_TIME, EXODUS_TIME, WALLS, SIGNS, SIGN_NM, SIGN_THEME, SLOTS, SLOT_NM, BLESS, COMBO_NM, SHOP, CLASSES, MINLV, META, LOBBY, WEAPONS }
+    cfg: { MW, MH, MATCH_TIME, EXODUS_TIME, SIGNS, SIGN_NM, SIGN_THEME, SLOTS, SLOT_NM, BLESS, COMBO_NM, SHOP, CLASSES, MINLV, META, LOBBY, WEAPONS },
+    map: mapPacket()
   }));
 });
 
@@ -2141,6 +2278,7 @@ function handleMsg(ws, m) {
       if (ROOM.ph === 'over') {
         ROOM.ph = 'lobby'; ROOM.t = 0; ROOM.results = null;
         resetWorld();
+        broadcastMap();
         for (const q of ROOM.players) { if (!q.bot) toLobby(q); }
         ROOM.players = ROOM.players.filter(q => !q.bot);
       }

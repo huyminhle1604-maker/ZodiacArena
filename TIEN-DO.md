@@ -98,6 +98,20 @@ UI: nút lên cấp cạnh thanh máu (không tự bật bảng, đúng yêu c�
 - `map1-server.js`: `makePlayer()` nhận thêm tham số `sign`, lưu `p.sign` và gắn thẳng `bl.pas`. `join` đọc `m.sg`. `startMatch()` reset blessing nhưng **giữ lại** `pas: p.sign`. Bot không truyền cung nên tự bốc ngẫu nhiên.
 - `map1.html`: client **nối WebSocket ngay khi mở trang** thay vì đợi bấm nút — gói `welcome` mang `cfg` tới trước cả khi join, nhờ đó bảng chọn cung lấy được `BLESS[sg].pas` thật từ server thay vì chép lại mô tả ở client (chép thì cân bằng lại là lệch ngay). Nút vào map khoá tới khi chọn xong cung.
 
+### Địa hình map 1 — hai biến thể, dựng theo `design_handoff_map1_ruin`
+Bỏ hẳn mô hình cũ (sàn trống + 8 tường hình chữ nhật). Mỗi ván server bốc **HẦM MỘ** (`crypt`, 17 phòng nối hành lang, sàn 46,2%) hoặc **PHẾ TÍCH** (`ruin`, vành đai đường đất + 4 nan hoa vào quảng trường tâm, sàn 43,8%).
+
+- `assets/map1-layout.js`, `assets/map1-ruin-layout.js` — lưới 75×50 ô 32px + toạ độ boss/rương/bãi quái/merchant/cổng. Viết kiểu dùng được **cả hai phía**: `require()` ở server, `<script>` ở client (`window.MAP1_CRYPT` / `MAP1_RUIN`). Ký tự: `#` vật cản · `.` sàn/cỏ · `,` đường đất · `=` đá lát.
+- **Bốc skin ở `resetWorld()`**, không bao giờ ở client (6 người sẽ thấy 6 map khác nhau). `SKIN=crypt node map1-server.js` để ép một biến thể khi test.
+- `inWall()` giờ tra lưới thay vì quét `WALLS`. Phải lấy mẫu **9 điểm** (tâm + 4 cạnh + 4 góc) chứ không chỉ 4 góc — chỉ 4 góc thì ô cản nằm thẳng bên cạnh lọt qua khe giữa hai góc.
+- **Tìm đường bot**: đồ thị tầm nhìn theo góc tường không mô tả nổi lưới, thay bằng A* trên chính lưới đó + rút gọn đường bằng `losClear`. 0,2 ms/lần, nối được 100% các cặp điểm quan trọng trên cả hai bản đồ.
+- Ba chỗ trước đây thả thực thể bừa ra map nay phải bám sàn: quái sinh ở bãi (thu dần bán kính rồi mới về tâm bãi), quái **đi về camp** (tách trục X/Y như lúc đuổi), blessing rơi ngẫu nhiên (80 lượt thử, hết thì rơi vào ô rương).
+- Cổng thoát lúc di tản đứng đúng chỗ bản thiết kế vẽ vòm đá (crypt 4 cổng, ruin 2) thay vì rải ngẫu nhiên 5 cái.
+- **Chỗ đứng đầu ván**: lấy mẫu điểm-xa-nhất trên sàn, cách bệ boss ≥520px; bản phế tích ưu tiên vành đai đường đất. (Handoff để ngỏ câu này — đây là câu trả lời đã chọn.)
+- Client: nền + decal vẽ **một lần** vào canvas đệm 2400×1600 lúc nhận gói `map`, mỗi frame chỉ blit phần trong khung nhìn. Hầm mộ có thêm lớp tối `dark:.55` khoét vũng đuốc + bloom ấm; phế tích không cần lớp tối, chỉ vignette — vật liệu tự phân tầng độ sáng.
+- Prop (rương / quầy merchant / cổng dịch chuyển / bệ boss) **dùng chung một bộ** cho cả hai biến thể, đúng yêu cầu handoff.
+- Test: `node test-nav.js` (va chạm + tìm đường + chỗ đứng, chạy cả hai biến thể) và `node test-map1.js` (mở server thật, chơi hết một ván với 5 bot, soát không ai kẹt trong vật cản).
+
 ### UI "Thiên Bàn" — áp vào `map1.html`
 Theo `UI_HANDOFF.md` + trang đối chiếu `Zodiac Arena UI.dc.html` của Claude Design. Chỉ đổi lớp trình bày, không đụng gameplay/netcode/`map1-server.js`.
 - **Font**: Cormorant Garamond (tên gọi, tiêu đề, đồng hồ, phím kỹ năng) · Be Vietnam Pro (câu văn) · JetBrains Mono (nhãn máy, số liệu). Nạp qua `<link>` Google Fonts — xem cảnh báo dưới.
