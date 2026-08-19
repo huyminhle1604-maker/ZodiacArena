@@ -13,6 +13,25 @@ const LAYOUTS = {
   crypt: require('./assets/map1-layout.js'),
   ruin: require('./assets/map1-ruin-layout.js')
 };
+/* đúng phép thử va chạm của server: 9 điểm quanh thân bán kính 12 */
+function chamTuong(L, x, y) {
+  const pad = 12, s = (a, b) => L.solid(a, b);
+  return s(x, y) || s(x - pad, y) || s(x + pad, y) || s(x, y - pad) || s(x, y + pad) ||
+    s(x - pad, y - pad) || s(x + pad, y - pad) || s(x - pad, y + pad) || s(x + pad, y + pad);
+}
+/* Kẹt THẬT = không nhúc nhích được theo hướng nào. Không dùng chamTuong() trực
+   tiếp làm phép thử: gói state làm tròn x/y về số nguyên, lệch nửa pixel là đủ
+   báo nhầm ở chỗ thân chạm chéo một góc đá mà thực ra vẫn đi ra được. */
+function kepCung(L, x, y) {
+  const sp = 5.2;                       // spd * 2 / 1 frame, cỡ bước thật
+  for (let k = 0; k < 8; k++) {
+    const a = k * Math.PI / 4;
+    const nx = x + Math.cos(a) * sp, ny = y + Math.sin(a) * sp;
+    if (!chamTuong(L, nx, y)) return false;
+    if (!chamTuong(L, x, ny)) return false;
+  }
+  return true;
+}
 
 let fail = 0;
 const ok = (c, m) => { if (!c) { console.log('  ✗ ' + m); fail++; } else console.log('  ✓ ' + m); };
@@ -90,6 +109,21 @@ function run() {
       else walked[k] = { d: 0 };
       walked[k].x = p.x; walked[k].y = p.y;
       if (L.solid(p.x, p.y)) trail.stuckP = (trail.stuckP || 0) + 1;
+      /* kẹt cứng: tâm trên sàn nhưng thân không lọt -> đứng im vĩnh viễn */
+      if (kepCung(L, p.x, p.y)) { trail.kep = (trail.kep || 0) + 1; trail.kepAt = Math.round(p.x) + ',' + Math.round(p.y); }
+      /* theo dõi hồi sinh: chết rồi sống lại thì phải sống lại ĐÚNG chỗ chết */
+      const k2 = 'd' + p.s;
+      if (trail[k2] && trail[k2].dead && p.al) {
+        const d = Math.hypot(p.x - trail[k2].x, p.y - trail[k2].y);
+        trail.hoiSinh = (trail.hoiSinh || 0) + 1;
+        trail.hoiSinhXa = Math.max(trail.hoiSinhXa || 0, Math.round(d));
+        trail[k2].dead = false;
+      }
+    }
+    for (const p of m.P) {
+      const k2 = 'd' + p.s;
+      if (!trail[k2]) trail[k2] = { dead: false, x: p.x, y: p.y };
+      if (!p.al && !p.es && !trail[k2].dead) { trail[k2].dead = true; trail[k2].x = p.x; trail[k2].y = p.y; }
     }
     for (const e of m.E) if (L.solid(e.x, e.y)) trail.stuckE = (trail.stuckE || 0) + 1;
     for (const c of m.C) if (L.solid(c.x, c.y)) trail.badChest = (trail.badChest || 0) + 1;
@@ -109,6 +143,9 @@ function run() {
     ok(lastMap && lastMap.camps.length >= 12, (lastMap ? lastMap.camps.length : 0) + ' bãi quái');
     ok(lastMap && lastMap.chests.length === 16, '16 rương');
     ok(!trail.stuckP, (trail.stuckP || 0) + ' lần người chơi nằm trong vật cản (phải là 0)');
+    ok(!trail.kep, (trail.kep || 0) + ' lần người chơi kẹt cứng, thân không lọt (phải là 0)' + (trail.kepAt ? ' @ ' + trail.kepAt : ''));
+    ok(trail.hoiSinh > 0, (trail.hoiSinh || 0) + ' lượt hồi sinh quan sát được');
+    ok(!trail.hoiSinh || trail.hoiSinhXa <= 40, 'hồi sinh cách chỗ chết xa nhất ' + (trail.hoiSinhXa || 0) + 'px (phải bám chỗ chết)');
     ok(!trail.stuckE, (trail.stuckE || 0) + ' lần quái nằm trong vật cản (phải là 0)');
     ok(!trail.badChest, (trail.badChest || 0) + ' rương nằm trong vật cản (phải là 0)');
     ok(!trail.badGate, (trail.badGate || 0) + ' cổng nằm trong vật cản (phải là 0)');

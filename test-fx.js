@@ -110,6 +110,24 @@ for (const e of SRV_EV) {
 }
 
 console.log('\nkind chưa ai gọi (chỉ để biết):');
+console.log('\nbuff bám người và vũng thường trú:');
+ok(typeof ZAFx.follow === 'function', 'ZAFx.follow có mặt');
+ok(typeof ZAFx.pool === 'function', 'ZAFx.pool có mặt');
+/* Cuồng Nộ kéo 6 giây: server phải gửi slot, effects.js phải nhận own, và
+   map1.html phải gọi follow mỗi frame — thiếu một mắt là aura đứng lại chỗ cũ. */
+ok(/sk: 'frenzy', s: p\.slot/.test(SRV), 'server gửi kèm slot cho ev frenzy');
+ok(/frenzy:[^\n]*own: e\.s/.test(FX), 'effects.js gắn own cho frenzy');
+ok(/ZAFx\.follow\(/.test(HTML), 'map1.html gọi ZAFx.follow mỗi frame');
+ok(/ZAFx\.pool\(/.test(HTML), 'map1.html vẽ vũng bằng ZAFx.pool');
+ok(!/'#7bd67b':'#ffd479'/.test(HTML), 'không còn vũng nguyền tô nhầm màu vàng');
+{
+  const f = ZAFx.spawn('frenzy', { x: 0, y: 0, own: 2 });
+  ZAFx.follow(s => (s === 2 ? { x: 300, y: 120 } : null));
+  ok(f.x === 300 && f.y === 120, 'follow kéo aura theo chủ (' + f.x + ',' + f.y + ')');
+  ZAFx.follow(() => null);
+  ok(ZAFx.count() === 0, 'chủ biến mất thì aura tắt');
+}
+
 const used = new Set([...Object.values(BY_SK), ...Object.values(BY_COL), ...evSpawns, ...htmlSpawns,
   ...Object.values(BASIC), ...Object.values(MON_ATK), ...signs.map(s => 'z_' + s)]);
 const idle = [...KINDS].filter(k => !used.has(k));

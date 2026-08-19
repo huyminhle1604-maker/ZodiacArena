@@ -1147,7 +1147,11 @@ function render(){
     drawDark();          /* hầm mộ: lớp tối + vũng đuốc, phủ lên cả nhân vật */
     drawMeteors();
     drawFx();
-    if(window.ZAFx) ZAFx.draw(ctx);
+    if(window.ZAFx){
+      /* buff bám người phải đi theo chân người chơi trước khi vẽ */
+      ZAFx.follow(function(slot){ return playerAt(slot,alpha); });
+      ZAFx.draw(ctx);
+    }
   }
 
   ctx.restore();
@@ -1253,8 +1257,11 @@ var PAL={
     canopy:'#22331A', canopyLit:'#2C4322', canopyRoot:'#0F1608'
   },
   crypt:{
-    dead:'#0C0A10', stoneDim:'#10161A',
-    wall:'#35464A', wallTop:'#4A5A5E', wallFoot:'#1A2226',
+    dead:'#0C0A10',
+    /* đá SÂU trong khối — vẫn phải ra vật liệu, không được để trống bằng màu
+       nền, nếu không người chơi đọc ra hư không rồi đâm đầu vào tường vô hình */
+    bulk:['#1B2429','#182126','#1E272C'], bulkSeam:'#12191D', bulkFleck:'#263238',
+    wall:'#35464A', wallTop:'#4A5A5E', wallFoot:'#1A2226', stoneDim:'#10161A',
     floor:['#4E6260','#465A58','#556A66','#485C5A'],
     mortar:'#35464A', crack:'#3E4E4C', moss:'#4E6A50',
     torch:'#F0A54B'
@@ -1397,10 +1404,22 @@ function paintCrypt(g,W,H,cell){
   for(var gy=0;gy<gh;gy++) for(var gx=0;gx<gw;gx++){
     var x=gx*cell, y=gy*cell, n=h2(gx,gy,1);
     if(!walk(gx,gy)){
-      /* chỉ đá sát sàn mới vẽ thành khối tường; sâu bên trong để tối om */
+      /* MỌI ô đá đều phải vẽ ra vật liệu. Ô sát sàn thành mặt tường sáng hơn,
+         ô sâu bên trong thành khối đá tối có mạch — vẫn tối hơn sàn một bậc
+         nên đọc ngay ra "không qua được", nhưng không còn là mảng trống. */
       var near=walk(gx+1,gy)||walk(gx-1,gy)||walk(gx,gy+1)||walk(gx,gy-1)||
                walk(gx+1,gy+1)||walk(gx-1,gy-1)||walk(gx+1,gy-1)||walk(gx-1,gy+1);
-      if(!near) continue;
+      if(!near){
+        g.fillStyle=P.bulk[(n*3)|0]; g.fillRect(x,y,cell,cell);
+        /* mạch khối đá: so le từng hàng cho khỏi ra bàn cờ */
+        g.fillStyle=P.bulkSeam;
+        g.fillRect(x,y+cell-2,cell,2);
+        var off=(gy&1)?cell/2:0;
+        g.fillRect(x+off,y,2,cell-2);
+        if(h2(gx,gy,41)<.22) g.fillRect(x+((h2(gx,gy,42)*24)|0),y+((h2(gy,gx,43)*22)|0),(h2(gx,gy,44)*10+4)|0,2);
+        if(h2(gx,gy,45)<.14){ g.fillStyle=P.bulkFleck; g.fillRect(x+((h2(gx,gy,46)*26)|0),y+((h2(gy,gx,47)*26)|0),3,2); }
+        continue;
+      }
       g.fillStyle=P.stoneDim; g.fillRect(x,y,cell,cell);
       g.fillStyle=P.wall;     g.fillRect(x+1,y+1,cell-2,cell-2);
       g.fillStyle=P.wallTop;  g.fillRect(x+1,y+1,cell-2,3);
@@ -1508,9 +1527,12 @@ function buildTerrain(){
     var d=dark.getContext('2d');
     d.fillStyle='#0A1018'; d.fillRect(0,0,W,H);
     d.globalCompositeOperation='destination-out';
-    /* Ánh sáng nền: mọi ô sàn đều được gỡ bớt 34% lớp tối, nên đứng xa đuốc
-       vẫn đọc ra đường đi — sàn luôn sáng hơn đá đặc đúng một bậc. */
-    d.fillStyle='rgba(0,0,0,.34)';
+    /* Ánh sáng nền hai bậc. Đá cũng phải được gỡ một ít (12%) thì vân đá mới
+       còn nhìn thấy — bóp đen hoàn toàn thì khối đá lại đọc ra mảng trống,
+       đúng cái lỗi tường vô hình. Sàn gỡ tiếp cho tổng ~34%, nên vẫn giữ đúng
+       luật "sàn sáng hơn đá một bậc" của bản thiết kế. */
+    d.fillStyle='rgba(0,0,0,.12)'; d.fillRect(0,0,W,H);
+    d.fillStyle='rgba(0,0,0,.26)';
     for(var ty=0;ty<gh2;ty++) for(var tx=0;tx<gw2;tx++)
       if(walk(tx,ty)) d.fillRect(tx*cell,ty*cell,cell,cell);
     var hole=function(x,y,r,peak){
@@ -1541,6 +1563,14 @@ function buildTerrain(){
     MAPD.merchants.forEach(function(m){ warm(m[0],m[1],92,.17,'rgba(240,165,75,$)'); });
     MAPD.gates.forEach(function(p){ warm(p[0],p[1],100,.20,'rgba(176,143,212,$)'); });
     warm(MAPD.boss[0],MAPD.boss[1],170,.16,'rgba(232,85,48,$)');
+    /* Giữ bloom NẰM TRÊN SÀN. Để nó tràn lên mặt đá thì ô đá cạnh đuốc sáng
+       ngang chỗ sàn tối, và luật đọc map "sàn luôn sáng hơn đá" gãy ngay tại
+       chỗ đông đuốc nhất. */
+    gl.globalCompositeOperation='destination-in';
+    gl.fillStyle='#fff';
+    for(var wy=0;wy<gh2;wy++) for(var wx=0;wx<gw2;wx++)
+      if(walk(wx,wy)) gl.fillRect(wx*cell,wy*cell,cell,cell);
+    gl.globalCompositeOperation='source-over';
   } else {
     /* phế tích: vignette nhẹ ở rìa để mắt tự dồn về tâm */
     var vg=g.createRadialGradient(W/2,H/2,640,W/2,H/2,1500);
@@ -1579,13 +1609,27 @@ function drawDark(){
   }
 }
 
+/* Vũng độc / vũng nguyền nằm lại trên sân. Trước đây vẽ bằng một hình tròn
+   phẳng alpha .22 — không cùng ngôn ngữ với hiệu ứng pixel còn lại, và vũng
+   nguyền còn tô nhầm màu vàng thay vì tím. Giờ giao cho effects.js vẽ, đúng
+   bán kính sát thương server gửi. */
 function drawPools(){
+  var now=performance.now();
   cur.PO.forEach(function(p){
-    ctx.globalAlpha=.22;
-    ctx.fillStyle=p.ty==='poison'?'#7bd67b':'#ffd479';
-    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill();
-    ctx.globalAlpha=1;
+    if(window.ZAFx) ZAFx.pool(ctx,{x:p.x,y:p.y,r:p.r,ty:p.ty,t:p.t,now:now});
+    else { ctx.globalAlpha=.22; ctx.fillStyle=p.ty==='curse'?'#c58cff':'#7bd67b';
+           ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill(); ctx.globalAlpha=1; }
   });
+}
+
+/* Vị trí đã nội suy của một slot — dùng cho hiệu ứng bám người. */
+function playerAt(slot,alpha){
+  if(!cur||!cur.P) return null;
+  var p=null;
+  for(var i=0;i<cur.P.length;i++) if(cur.P[i].s===slot){ p=cur.P[i]; break; }
+  if(!p||!p.al||p.es) return null;
+  var pp=prev?prev.P.find(function(o){return o.s===slot}):null;
+  return { x: pp?lerp(pp.x,p.x,alpha):p.x, y: pp?lerp(pp.y,p.y,alpha):p.y };
 }
 
 function drawChests(){

@@ -1218,7 +1218,8 @@ const SIGN_G = { ari:'♈', tau:'♉', gem:'♊', can:'♋', leo:'♌', vir:'♍
 function doR_B(p, power) {
   if (p.cls === 'sw') {                       // Cuồng Nộ
     p.frenzy = 6;
-    ev({ k: 'ring', x: p.x, y: p.y, r: 70, c: '#ff5c6c', sk: 'frenzy' });
+    /* s = slot: client cho aura bám theo người chơi suốt 6 giây buff */
+    ev({ k: 'ring', x: p.x, y: p.y, r: 70, c: '#ff5c6c', sk: 'frenzy', s: p.slot });
     ev({ k: 'toast', s: p.slot, m: 'Cuồng Nộ! +25% sát thương và tốc đánh trong 6 giây' });
   } else if (p.cls === 'ar') {                // Nỏ Liên Thanh
     p.volley = { n: 6, t: 0, gap: 0.09, dmg: p.atk * 1.1 * power };
@@ -1355,6 +1356,20 @@ function unstick(p) {
       if (!inWall(x, y, 12)) { p.x = x; p.y = y; return; }
     }
   }
+  /* Quét vòng tròn có thể trượt sạch nếu đang nằm giữa một khối đá to hơn
+     140px. Đây là lưới an toàn cuối: tìm thẳng trên lưới, mở rộng từng vành ô
+     cho tới khi gặp ô đứng được — không bao giờ để người chơi kẹt cứng. */
+  const L = MAP, C = L.CELL;
+  const gx = clamp((p.x / C) | 0, 0, L.GW - 1), gy = clamp((p.y / C) | 0, 0, L.GH - 1);
+  for (let ring = 1; ring < Math.max(L.GW, L.GH); ring++) {
+    for (let oy = -ring; oy <= ring; oy++) for (let ox = -ring; ox <= ring; ox++) {
+      if (Math.max(Math.abs(ox), Math.abs(oy)) !== ring) continue;
+      const nx = gx + ox, ny = gy + oy;
+      if (nx < 0 || ny < 0 || nx >= L.GW || ny >= L.GH) continue;
+      const cx = nx * C + C / 2, cy = ny * C + C / 2;
+      if (!inWall(cx, cy, 12)) { p.x = cx; p.y = cy; return; }
+    }
+  }
 }
 
 function kb(t, from, force) {
@@ -1374,9 +1389,12 @@ function updatePlayer(p) {
     p.deadT -= DT;
     if (p.deadT <= 0) {
       p.alive = true; p.hp = p.mhp * 0.6; p.mp = p.mmp * 0.5;
-      p.x = clamp(p.x + rnd(-120, 120), 40, MW - 40);
-      p.y = clamp(p.y + rnd(-120, 120), 40, MH - 40);
-      if (inWall(p.x, p.y, 12)) unstick(p);         // đừng hồi sinh vào trong lùm cây
+      /* Hồi sinh ĐÚNG chỗ chết. Bản cũ nhích ngẫu nhiên ±120px để khỏi sống
+         lại ngay trong mặt con quái vừa giết mình — nhưng địa hình bây giờ có
+         52% là đá đặc, nên cú nhích đó ném người chơi vào giữa khối đá và kẹt
+         cứng. Chỗ chết thì chắc chắn đứng được, còn 1.5 giây bất tử đã đủ để
+         thoát khỏi đám quái. */
+      if (inWall(p.x, p.y, 12)) unstick(p);         // lưới an toàn, gần như không dùng tới
       p.iframe = 1.5; p.hitSet = {};
     }
     return;
@@ -2080,7 +2098,8 @@ function snapshot(forSlot) {
     M: (inLobby || R.merchantOpen < 0) ? [] : [{ x: MERCHANTS[R.merchantOpen].x, y: MERCHANTS[R.merchantOpen].y, o: 1 }],
     G: inLobby ? [] : R.gates.map(g => ({ x: g.x, y: g.y, r: g.r })),
     MT: inLobby ? [] : R.meteors.filter(m => !m.done).map(m => ({ x: m.x, y: m.y, r: m.r, t: Math.round(m.t * 100) / 100 })),
-    PO: inLobby ? [] : R.pools.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), r: p.r, ty: p.ty })),
+    /* t = giây còn lại, để client nhạt dần vũng ở nhịp cuối thay vì tắt phụt */
+    PO: inLobby ? [] : R.pools.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), r: p.r, ty: p.ty, t: Math.round(p.t * 10) / 10 })),
     boss: R.bossUp ? 1 : (R.bossDead ? 2 : 0),
     lobby: R.ph === 'lobby' ? 1 : 0,
     bossIn: R.ph === 'playing' && !R.bossUp && !R.bossDead ? Math.max(0, Math.round(BOSS_AT - R.t)) : -1,
