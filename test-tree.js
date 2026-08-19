@@ -18,8 +18,10 @@ const core = [
 ].join('\n');
 
 const T = {};
+/* Đoạn trích trùm luôn khối LOBBY, mà tường sảnh giờ nằm ở assets/ chứ không
+   viết thẳng trong file nữa — cấp cho sandbox để đoạn mã còn dịch được. */
 vm.runInNewContext(core + '\nObject.assign(exports,{META,MINLV,applyFx,canAlloc,CLASSES});',
-                   { exports: T, Math, Object });
+                   { exports: T, Math, Object, LOBBY_WALLS: require('./assets/lobby-village-walls.js') });
 const { META, MINLV, applyFx, canAlloc } = T;
 
 function mk(cls){ return { cls, lv:1, pts:0, nodes:[cls+'_root'], br:null, fx:{} }; }

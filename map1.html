@@ -578,7 +578,8 @@ connect();
 function sendMsg(o){ if(WS&&WS.readyState===1) WS.send(JSON.stringify(o)); }
 
 function onMsg(m){
-  if(m.t==='welcome'){ CFG=m.cfg; return; }
+  if(m.t==='welcome'){ CFG=m.cfg; if(m.map) setMap(m.map); return; }
+  if(m.t==='map'){ setMap(m.map||m); return; }
   if(m.t==='full'){ alert('Phòng đã đầy'); return; }
   if(m.t==='joined'){
     MY=m.slot; joined=true;
@@ -1143,9 +1144,14 @@ function render(){
     drawEnemies(alpha);
     drawProjs();
     drawPlayers(alpha);
+    drawDark();          /* hầm mộ: lớp tối + vũng đuốc, phủ lên cả nhân vật */
     drawMeteors();
     drawFx();
-    if(window.ZAFx) ZAFx.draw(ctx);
+    if(window.ZAFx){
+      /* buff bám người phải đi theo chân người chơi trước khi vẽ */
+      ZAFx.follow(function(slot){ return playerAt(slot,alpha); });
+      ZAFx.draw(ctx);
+    }
   }
 
   ctx.restore();
@@ -1154,41 +1160,37 @@ function render(){
   stepFx();
 }
 
-/* ---- sảnh: nền, tường, 3 NPC, cổng dịch chuyển ---- */
+/* ---- sảnh: NGÔI LÀNG ----
+   Nền làng là MỘT ảnh 1200x820 vẽ 1:1 — không tile, không lớp ánh sáng: làng
+   sáng đều và ánh lửa đã nướng sẵn vào ảnh. Vòm đá, bệ rune, đường mòn, nhà
+   cửa đều nằm trong ảnh, nên ở đây chỉ còn nhịp sáng của cổng và 2 NPC.
+   Sảnh KHÔNG theo skin map: crypt hay ruin thì làng vẫn thế. */
+var LOB = new Image(); LOB.src = 'assets/lobby-village.png';
+var LOB_OK = false;
+LOB.onload = function(){ LOB_OK = true; };
+
 function drawLobby(){
   var L=CFG.LOBBY, now=performance.now();
 
-  /* nền lát đá + lưới thưa hơn map 1 cho ra cảm giác trong nhà */
-  ctx.fillStyle='#181220'; ctx.fillRect(0,0,L.W,L.H);
-  ctx.strokeStyle='#221A2C'; ctx.lineWidth=1/ZOOM;
-  ctx.beginPath();
-  for(var x=0;x<=L.W;x+=80){ ctx.moveTo(x,0); ctx.lineTo(x,L.H); }
-  for(var y=0;y<=L.H;y+=80){ ctx.moveTo(0,y); ctx.lineTo(L.W,y); }
-  ctx.stroke();
+  if(LOB_OK) ctx.drawImage(LOB,0,0,L.W,L.H);
+  else { ctx.fillStyle='#3D6B2F'; ctx.fillRect(0,0,L.W,L.H); }   /* ảnh chưa tải xong */
 
-  /* thảm dẫn từ chỗ xuất hiện lên cổng */
-  ctx.fillStyle='rgba(185,139,232,.05)';
-  ctx.fillRect(L.gate.x-70, L.gate.y-40, 140, 300);
-
-  /* tường */
-  L.walls.forEach(function(w){
-    ctx.fillStyle='#271F33'; ctx.fillRect(w.x,w.y,w.w,w.h);
-    ctx.strokeStyle='#40314C'; ctx.lineWidth=1; ctx.strokeRect(w.x+.5,w.y+.5,w.w-1,w.h-1);
-  });
-
-  /* cổng dịch chuyển */
+  /* cổng: chỉ còn nhịp sáng, phần hình đã nằm trong ảnh nền */
   var g=L.gate, pulse=.55+.45*Math.sin(now/220);
-  ctx.globalAlpha=pulse; ctx.strokeStyle='#B98BE8'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.arc(g.x,g.y,g.r,0,7); ctx.stroke();
-  ctx.globalAlpha=.16; ctx.fillStyle='#B98BE8';
-  ctx.beginPath(); ctx.arc(g.x,g.y,g.r,0,7); ctx.fill();
+  ctx.globalAlpha=pulse*.5; ctx.fillStyle='#B98BE8';
+  ctx.beginPath(); ctx.arc(g.x,g.y,g.r*.7,0,7); ctx.fill();
   ctx.globalAlpha=1;
-  ctx.font='8px "JetBrains Mono", monospace'; ctx.fillStyle='#B98BE8'; ctx.textAlign='center';
-  ctx.fillText('CỔNG DỊCH CHUYỂN',g.x,g.y-g.r-10);
-  ctx.fillText('RA MAP 1',g.x,g.y-g.r-1);
+  /* nhãn rơi đúng lên màn năng lượng tím nên phải có nền, không thì chìm */
+  ctx.font='8px "JetBrains Mono", monospace'; ctx.textAlign='center';
+  ctx.fillStyle='rgba(12,10,16,.6)'; ctx.fillRect(g.x-30,g.y-g.r-16,60,12);
+  ctx.fillStyle='#D8C4F4'; ctx.fillText('RA MAP 1',g.x,g.y-g.r-7);
 
-  /* NPC — bệ đứng + ký hiệu + tên */
-  L.npcs.forEach(function(n){
+  drawLobbyNpcs();
+}
+
+/* NPC — bệ đứng + ký hiệu + tên. Giữ nguyên như bản cũ. */
+function drawLobbyNpcs(){
+  CFG.LOBBY.npcs.forEach(function(n){
     var near = cur.me && cur.me.npc===n.id;
     ctx.fillStyle='rgba(0,0,0,.34)';
     ctx.beginPath(); ctx.ellipse(n.x,n.y+13,14,5,0,0,7); ctx.fill();
@@ -1200,78 +1202,539 @@ function drawLobby(){
     ctx.fillStyle='#E8C0A0'; ctx.fillRect(n.x-5,n.y-20,10,10);
     ctx.font='13px serif'; ctx.fillStyle=near?'#FFE9A8':'#B9A8C8'; ctx.textAlign='center';
     ctx.fillText(n.g,n.x,n.y-24);
-    ctx.font='8px "Be Vietnam Pro", sans-serif'; ctx.fillStyle=near?'#F0E9F4':'#9E90AB';
-    ctx.fillText(n.nm,n.x,n.y+30);
-    ctx.font='7px "JetBrains Mono", monospace'; ctx.fillStyle='#70647B';
-    ctx.fillText(n.role.toUpperCase(),n.x,n.y+40);
+    /* nhãn có nền mờ: chữ sáng trên cỏ sáng thì chìm, bản cũ nền tím nên không lộ */
+    var w=Math.max(ctx.measureText(n.nm).width, 54)+12;
+    ctx.fillStyle='rgba(12,10,16,.55)'; ctx.fillRect(n.x-w/2,n.y+22,w,22);
+    ctx.font='8px "Be Vietnam Pro", sans-serif'; ctx.fillStyle=near?'#F0E9F4':'#CDBFD8';
+    ctx.fillText(n.nm,n.x,n.y+32);
+    ctx.font='7px "JetBrains Mono", monospace'; ctx.fillStyle='#9E90AB';
+    ctx.fillText(n.role.toUpperCase(),n.x,n.y+41);
   });
+}
+
+/* ================= địa hình map 1 =================
+   Server bốc một trong hai biến thể mỗi ván và gửi kèm cả lưới 75x50 ô 32px.
+   Nền + decal vẽ MỘT LẦN vào canvas đệm 2400x1600 lúc nhận gói địa hình; mỗi
+   frame chỉ blit đúng phần đang nằm trong khung nhìn nên không tốn gì thêm.
+   Ký tự lưới: '#' vật cản · '.' sàn/cỏ · ',' đường đất · '=' đá lát quảng trường.
+   Prop (rương / merchant / cổng) dùng CHUNG một bộ sprite cho cả hai biến thể —
+   chỉ vật liệu nền đổi. */
+var MAPD=null;              /* gói địa hình mới nhất từ server */
+var TERR=null;              /* {skin, ground, dark} — canvas đệm đã dựng */
+
+function setMap(m){
+  if(!m || !m.rows) return;
+  if(MAPD && MAPD.skin===m.skin && MAPD.rows.join()===m.rows.join()) return;
+  MAPD=m; TERR=null;
+  /* Dựng ngay lúc nhận gói (còn đang ở sảnh) chứ không đợi frame đầu của ván —
+     vẽ 3750 ô vào canvas 2400x1600 mất vài trăm ms, để đúng lúc vào map thì
+     người chơi thấy khựng một nhịp. */
+  if(CFG) try{ buildTerrain(); }catch(e){ TERR=null; }
+}
+
+/* nhiễu có seed — cùng một ô luôn ra cùng một số, nên map không nhấp nháy */
+function h2(x,y,s){
+  var h=(x*73856093)^(y*19349663)^((s||0)*83492791);
+  h=Math.imul(h^(h>>>13),1274126177);
+  return ((h^(h>>>16))>>>0)/4294967296;
+}
+function surfAt(gx,gy){
+  var r=MAPD.rows[gy];
+  return (r && r[gx]) || '#';
+}
+function walk(gx,gy){ return surfAt(gx,gy)!=='#'; }
+
+/* ---- bảng màu, lấy nguyên từ bản thiết kế ---- */
+var PAL={
+  ruin:{
+    bush:['#16210F','#1B280F','#131C0C'],
+    grass:['#5E8A3E','#6E9A46','#54803A','#4E7A34'], tuft:'#7FAA52',
+    dirt:['#7A6242','#856B49','#6E573A'], grain:['#5E4A32','#94795A'], creep:'#4E7A34',
+    slabA:'#7E8A7C', slabB:'#77836F', slabLit:'#8E9A88', joint:'#3E4A38',
+    crack:'#5A6455', moss:'#4E7A34',
+    edgeB:'#0C1207', edgeT:'#35522A', edgeS:'#2C4322',
+    canopy:'#22331A', canopyLit:'#2C4322', canopyRoot:'#0F1608'
+  },
+  crypt:{
+    dead:'#0C0A10',
+    /* đá SÂU trong khối — vẫn phải ra vật liệu, không được để trống bằng màu
+       nền, nếu không người chơi đọc ra hư không rồi đâm đầu vào tường vô hình */
+    bulk:['#1B2429','#182126','#1E272C'], bulkSeam:'#12191D', bulkFleck:'#263238',
+    wall:'#35464A', wallTop:'#4A5A5E', wallFoot:'#1A2226', stoneDim:'#10161A',
+    floor:['#4E6260','#465A58','#556A66','#485C5A'],
+    mortar:'#35464A', crack:'#3E4E4C', moss:'#4E6A50',
+    torch:'#F0A54B'
+  }
+};
+
+/* cột đá vỡ — mốc định vị, dùng chung cho hai biến thể */
+function drawColumn(g,x,y,hgt){
+  g.fillStyle='rgba(12,18,7,.45)';
+  g.beginPath(); g.ellipse(x,y+4,16,6,0,0,7); g.fill();
+  g.fillStyle='#9A9082'; g.fillRect(x-12,y-4,24,8);          /* đế */
+  g.fillStyle='#8A8172'; g.fillRect(x-9,y-hgt,18,hgt);        /* thân */
+  g.fillStyle='#A3998A'; g.fillRect(x-9,y-hgt,4,hgt);         /* mép sáng trái */
+  g.fillStyle='#6E665A'; g.fillRect(x+3,y-hgt,6,hgt);         /* mép tối phải */
+  g.fillStyle='#9A9082'; g.fillRect(x-12,y-hgt-8,24,8);       /* đỉnh gãy */
+}
+
+/* đuốc tường của hầm mộ */
+function drawTorch(g,x,y){
+  g.fillStyle='#3A2E26'; g.fillRect(x-2,y-2,4,10);
+  g.fillStyle='#F0A54B'; g.fillRect(x-3,y-8,6,7);
+  g.fillStyle='#FFE0A8'; g.fillRect(x-1,y-6,2,4);
+}
+
+/* bệ triệu hồi boss — vũng đỏ duy nhất trên map, giống hệt ở cả hai biến thể */
+function drawBossPad(g,x,y){
+  var gr=g.createRadialGradient(x,y,0,x,y,230);
+  gr.addColorStop(0,'rgba(232,85,48,.30)'); gr.addColorStop(1,'rgba(232,85,48,0)');
+  g.fillStyle=gr; g.beginPath(); g.arc(x,y,230,0,7); g.fill();
+
+  g.strokeStyle='rgba(232,85,48,.32)'; g.lineWidth=3;
+  g.beginPath(); g.ellipse(x,y,190,190*.82,0,0,7); g.stroke();
+  g.beginPath(); g.ellipse(x,y,150,150*.82,0,0,7); g.stroke();
+
+  g.fillStyle='#5A2A22'; g.beginPath(); g.ellipse(x,y,104,66,0,0,7); g.fill();
+  g.fillStyle='#6B342A'; g.beginPath(); g.ellipse(x,y,98,60,0,0,7); g.fill();
+  for(var i=0;i<180;i++){
+    var a=h2(i,7,11)*Math.PI*2, r=Math.sqrt(h2(i,9,12))*96;
+    g.fillStyle=h2(i,3,13)<.5?'#7C3E30':'#4E241D';
+    g.fillRect(x+Math.cos(a)*r|0, y+Math.sin(a)*r*.62|0, 3,3);
+  }
+  for(var k=0;k<9;k++){
+    var ang=k/9*Math.PI*2, len=52+h2(k,1,14)*34;
+    g.strokeStyle=k%2?'#B03A20':'#E85530'; g.lineWidth=k%2?3:4;
+    g.beginPath(); g.moveTo(x,y);
+    g.lineTo(x+Math.cos(ang)*len, y+Math.sin(ang)*len*.66); g.stroke();
+  }
+  /* dấu hoàng đạo ở tâm */
+  g.fillStyle='#2A1410'; g.beginPath();
+  for(var s=0;s<8;s++){ var aa=s/8*Math.PI*2; var px=x+Math.cos(aa)*22, py=y+Math.sin(aa)*17; s?g.lineTo(px,py):g.moveTo(px,py); }
+  g.closePath(); g.fill();
+  g.fillStyle='#FFB08A'; g.fillRect(x-14,y-1.5,28,3); g.fillRect(x-1.5,y-11,3,22);
+  g.strokeStyle='#E85530'; g.lineWidth=2; g.beginPath(); g.arc(x,y,9,0,7); g.stroke();
+}
+
+/* Đánh dấu bãi quái. Hầm mộ có lớp tối nên dùng vũng tím như bản cũ; phế tích
+   sáng đều, không khoét được vũng nào, nên rắc viền hồng trên mép vòng. */
+function drawCampRing(g,cx,cy,r,skin){
+  if(skin==='crypt'){
+    var gr=g.createRadialGradient(cx,cy,0,cx,cy,r);
+    gr.addColorStop(0,'rgba(176,143,212,.20)');
+    gr.addColorStop(.7,'rgba(176,143,212,.10)');
+    gr.addColorStop(1,'rgba(176,143,212,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(cx,cy,r,0,7); g.fill();
+    /* vài hạt hồng rải trong vũng cho khớp màu quái, nhưng không kẻ viền —
+       một vòng tròn nét liền đọc ra hình vẽ kỹ thuật chứ không ra bãi quái */
+    for(var i=0;i<26;i++){
+      var a=h2(i,cx|0,cy|0)*Math.PI*2, rr=r*(.4+h2(i,cy|0,3)*.5);
+      g.fillStyle='rgba(224,85,154,.35)';
+      g.fillRect((cx+Math.cos(a)*rr)|0,(cy+Math.sin(a)*rr*.9)|0,3,3);
+    }
+    return;
+  }
+  for(var i=0;i<110;i++){
+    var a=h2(i,cx|0,cy|0)*Math.PI*2;
+    var rr=r*(.85+h2(i,cy|0,3)*.17);
+    g.fillStyle=h2(i,cx|0,5)<.5?'#D25B76':'#9C3A50';
+    g.fillRect((cx+Math.cos(a)*rr)|0,(cy+Math.sin(a)*rr*.9)|0,4,4);
+  }
+}
+
+/* ---------- biến thể PHẾ TÍCH ---------- */
+function paintRuin(g,W,H,cell){
+  var P=PAL.ruin, gw=MAPD.rows[0].length, gh=MAPD.rows.length;
+  g.fillStyle=P.bush[0]; g.fillRect(0,0,W,H);
+
+  for(var gy=0;gy<gh;gy++) for(var gx=0;gx<gw;gx++){
+    var ch=surfAt(gx,gy), x=gx*cell, y=gy*cell, n=h2(gx,gy,1);
+    if(ch==='#'){
+      g.fillStyle=P.bush[(n*3)|0]; g.fillRect(x,y,cell,cell);
+      if(h2(gx,gy,2)<.30){                       /* lùm cây */
+        var bx=x+cell/2, by=y+cell/2;
+        g.fillStyle=P.canopyRoot; g.beginPath(); g.arc(bx,by+4,11,0,7); g.fill();
+        g.fillStyle=P.canopy;     g.beginPath(); g.arc(bx,by,12,0,7); g.fill();
+        g.fillStyle=P.canopyLit;  g.beginPath(); g.arc(bx-3,by-4,6,0,7); g.fill();
+      }
+    } else if(ch===','){
+      g.fillStyle=P.dirt[(n*3)|0]; g.fillRect(x,y,cell,cell);
+      for(var i=0;i<7;i++){
+        var px=x+h2(gx*7+i,gy,3)*cell, py=y+h2(gx,gy*7+i,4)*cell;
+        g.fillStyle=P.grain[h2(i,gx+gy,5)<.5?0:1];
+        g.fillRect(px|0,py|0,2,2);
+      }
+      if(h2(gx,gy,6)<.22){ g.fillStyle=P.creep; g.fillRect(x+(h2(gx,gy,7)*24)|0,y+(h2(gy,gx,8)*24)|0,3,3); }
+    } else if(ch==='='){
+      /* đá lát: mặt phiến, mép sáng trên-trái, mạch tối dưới-phải */
+      g.fillStyle=n<.5?P.slabA:P.slabB; g.fillRect(x,y,cell,cell);
+      g.fillStyle=P.slabLit; g.fillRect(x,y,cell,2); g.fillRect(x,y,2,cell);
+      g.fillStyle=P.joint;   g.fillRect(x,y+cell-3,cell,3); g.fillRect(x+cell-3,y,3,cell);
+      if(h2(gx,gy,9)<.30){ g.fillStyle=P.crack; g.fillRect(x+6,y+(h2(gx,gy,10)*20|0),(h2(gy,gx,11)*16+4)|0,2); }
+      if(h2(gx,gy,12)<.25){ g.fillStyle=P.moss; g.fillRect(x+cell-3,y+(h2(gx,gy,13)*26|0),3,5); }
+    } else {
+      g.fillStyle=P.grass[(n*4)|0]; g.fillRect(x,y,cell,cell);
+      for(var t=0;t<3;t++){
+        if(h2(gx*3+t,gy,14)<.45){
+          g.fillStyle=P.tuft;
+          g.fillRect((x+h2(gx+t,gy,15)*28)|0,(y+h2(gx,gy+t,16)*28)|0,3,2);
+        }
+      }
+    }
+  }
+
+  /* viền tiếp giáp lùm cây: chỉ ở ô '#' có hàng xóm đi được — thứ làm mép cây
+     đọc ra "không qua được" mà không cần vẽ tường */
+  for(var gy2=0;gy2<gh;gy2++) for(var gx2=0;gx2<gw;gx2++){
+    if(surfAt(gx2,gy2)!=='#') continue;
+    var x2=gx2*cell, y2=gy2*cell;
+    if(walk(gx2,gy2+1)){ g.fillStyle=P.edgeB; g.fillRect(x2,y2+cell-4,cell,4); }
+    if(walk(gx2,gy2-1)){ g.fillStyle=P.edgeT; g.fillRect(x2,y2,cell,3); }
+    if(walk(gx2-1,gy2)){ g.fillStyle=P.edgeS; g.fillRect(x2,y2,3,cell); }
+    if(walk(gx2+1,gy2)){ g.fillStyle=P.edgeS; g.fillRect(x2+cell-3,y2,3,cell); }
+  }
+}
+
+/* ---------- biến thể HẦM MỘ ---------- */
+function paintCrypt(g,W,H,cell){
+  var P=PAL.crypt, gw=MAPD.rows[0].length, gh=MAPD.rows.length;
+  g.fillStyle=P.dead; g.fillRect(0,0,W,H);
+
+  for(var gy=0;gy<gh;gy++) for(var gx=0;gx<gw;gx++){
+    var x=gx*cell, y=gy*cell, n=h2(gx,gy,1);
+    if(!walk(gx,gy)){
+      /* MỌI ô đá đều phải vẽ ra vật liệu. Ô sát sàn thành mặt tường sáng hơn,
+         ô sâu bên trong thành khối đá tối có mạch — vẫn tối hơn sàn một bậc
+         nên đọc ngay ra "không qua được", nhưng không còn là mảng trống. */
+      var near=walk(gx+1,gy)||walk(gx-1,gy)||walk(gx,gy+1)||walk(gx,gy-1)||
+               walk(gx+1,gy+1)||walk(gx-1,gy-1)||walk(gx+1,gy-1)||walk(gx-1,gy+1);
+      if(!near){
+        g.fillStyle=P.bulk[(n*3)|0]; g.fillRect(x,y,cell,cell);
+        /* mạch khối đá: so le từng hàng cho khỏi ra bàn cờ */
+        g.fillStyle=P.bulkSeam;
+        g.fillRect(x,y+cell-2,cell,2);
+        var off=(gy&1)?cell/2:0;
+        g.fillRect(x+off,y,2,cell-2);
+        if(h2(gx,gy,41)<.22) g.fillRect(x+((h2(gx,gy,42)*24)|0),y+((h2(gy,gx,43)*22)|0),(h2(gx,gy,44)*10+4)|0,2);
+        if(h2(gx,gy,45)<.14){ g.fillStyle=P.bulkFleck; g.fillRect(x+((h2(gx,gy,46)*26)|0),y+((h2(gy,gx,47)*26)|0),3,2); }
+        continue;
+      }
+      g.fillStyle=P.stoneDim; g.fillRect(x,y,cell,cell);
+      g.fillStyle=P.wall;     g.fillRect(x+1,y+1,cell-2,cell-2);
+      g.fillStyle=P.wallTop;  g.fillRect(x+1,y+1,cell-2,3);
+      g.fillStyle=P.wallFoot; g.fillRect(x+1,y+cell-5,cell-2,4);
+      continue;
+    }
+    g.fillStyle=P.floor[(n*4)|0]; g.fillRect(x,y,cell,cell);
+    g.fillStyle=P.mortar; g.fillRect(x,y+cell-1,cell,1); g.fillRect(x+cell-1,y,1,cell);
+    if(h2(gx,gy,2)<.18){ g.fillStyle=P.crack; g.fillRect(x+5,y+(h2(gx,gy,3)*22|0),(h2(gy,gx,4)*18+4)|0,1); }
+    if(h2(gx,gy,5)<.10){ g.fillStyle=P.moss;  g.fillRect(x+(h2(gx,gy,6)*24|0),y+(h2(gy,gx,7)*24|0),4,3); }
+  }
+
+  /* mép sàn giáp đá: gờ tối để sàn nổi lên một bậc */
+  for(var gy2=0;gy2<gh;gy2++) for(var gx2=0;gx2<gw;gx2++){
+    if(!walk(gx2,gy2)) continue;
+    var x2=gx2*cell, y2=gy2*cell;
+    if(!walk(gx2,gy2-1)){ g.fillStyle='rgba(10,16,24,.55)'; g.fillRect(x2,y2,cell,5); }
+    if(!walk(gx2-1,gy2)){ g.fillStyle='rgba(10,16,24,.35)'; g.fillRect(x2,y2,4,cell); }
+    if(!walk(gx2+1,gy2)){ g.fillStyle='rgba(10,16,24,.35)'; g.fillRect(x2+cell-4,y2,4,cell); }
+  }
+}
+
+/* Đuốc: gắn ở ô sàn có đá ngay phía bắc (mặt tường), rồi lọc thưa để hai cái
+   không bao giờ gần nhau dưới 300px. Đủ để định vị chứ không thành biển sáng —
+   khoảng 30 cái trên cả map, đúng như bản thiết kế. */
+function cryptTorches(cell){
+  var cand=[], gw=MAPD.rows[0].length, gh=MAPD.rows.length;
+  for(var gy=1;gy<gh;gy++) for(var gx=0;gx<gw;gx++){
+    if(!walk(gx,gy) || walk(gx,gy-1)) continue;
+    cand.push({x:gx*cell+cell/2, y:gy*cell+8, k:h2(gx,gy,21)});
+  }
+  cand.sort(function(a,b){ return b.k-a.k; });
+  var out=[];
+  for(var i=0;i<cand.length;i++){
+    var okd=true;
+    for(var j=0;j<out.length;j++)
+      if(Math.hypot(cand[i].x-out[j].x, cand[i].y-out[j].y)<300){ okd=false; break; }
+    if(okd) out.push(cand[i]);
+  }
+  return out;
+}
+
+/* Ô đi được gần nhất quanh một điểm — cột đá phải đứng trên sàn, không thụt
+   vào trong lùm cây. Trả về null nếu quanh đó toàn vật cản. */
+function nearestFloor(x,y,cell,reach){
+  var gx=(x/cell)|0, gy=(y/cell)|0;
+  if(walk(gx,gy)) return {x:x,y:y};
+  for(var r=1;r<=(reach||3);r++){
+    for(var oy=-r;oy<=r;oy++) for(var ox=-r;ox<=r;ox++){
+      if(Math.max(Math.abs(ox),Math.abs(oy))!==r) continue;
+      if(walk(gx+ox,gy+oy)) return {x:(gx+ox)*cell+cell/2, y:(gy+oy)*cell+cell/2};
+    }
+  }
+  return null;
+}
+
+/* Cột đá vỡ làm mốc định vị: một cột cạnh mỗi bãi quái, cộng bốn cột ôm bốn
+   mép quảng trường tâm (mép đá lát '='; hầm mộ không có đá lát thì lấy quanh
+   bệ boss). */
+function columnSpots(cell){
+  var out=[], b=MAPD.boss, gw=MAPD.rows[0].length, gh=MAPD.rows.length;
+  MAPD.camps.forEach(function(c,i){
+    var a=i*1.9;
+    var p=nearestFloor(c[0]+Math.cos(a)*(c[2]+26), c[1]+Math.sin(a)*(c[2]+26), cell, 3);
+    if(p) out.push({x:p.x, y:p.y, h:30+((h2(p.x|0,p.y|0,31)*20)|0)});
+  });
+
+  /* khung bao của quảng trường đá lát */
+  var x0=1e9,y0=1e9,x1=-1e9,y1=-1e9,any=false;
+  for(var gy=0;gy<gh;gy++) for(var gx=0;gx<gw;gx++){
+    if(surfAt(gx,gy)!=='=') continue;
+    any=true;
+    if(gx<x0)x0=gx; if(gx>x1)x1=gx; if(gy<y0)y0=gy; if(gy>y1)y1=gy;
+  }
+  var cx0,cy0,cx1,cy1;
+  if(any){ cx0=(x0+1.5)*cell; cx1=(x1-.5)*cell; cy0=(y0+1.5)*cell; cy1=(y1-.5)*cell; }
+  else   { cx0=b[0]-260; cx1=b[0]+260; cy0=b[1]-190; cy1=b[1]+190; }
+  [[cx0,cy0],[cx1,cy0],[cx0,cy1],[cx1,cy1]].forEach(function(o,i){
+    var p=nearestFloor(o[0],o[1],cell,3);
+    if(p) out.push({x:p.x, y:p.y, h:38+i*3});
+  });
+  return out;
+}
+
+/* Dựng canvas đệm cho biến thể hiện tại. Gọi một lần mỗi ván. */
+function buildTerrain(){
+  var W=CFG.MW, H=CFG.MH, cell=MAPD.cell||32, skin=MAPD.skin;
+  var gw2=MAPD.rows[0].length, gh2=MAPD.rows.length;
+  var gc=document.createElement('canvas'); gc.width=W; gc.height=H;
+  var g=gc.getContext('2d'); g.imageSmoothingEnabled=false;
+
+  if(skin==='crypt') paintCrypt(g,W,H,cell); else paintRuin(g,W,H,cell);
+
+  var torches = skin==='crypt' ? cryptTorches(cell) : [];
+  columnSpots(cell).forEach(function(c){ drawColumn(g,c.x,c.y,c.h); });
+  torches.forEach(function(t){ drawTorch(g,t.x,t.y); });
+  MAPD.camps.forEach(function(c){ drawCampRing(g,c[0],c[1],c[2],skin); });
+  drawBossPad(g,MAPD.boss[0],MAPD.boss[1]);
+
+  var dark=null, glow=null;
+  if(skin==='crypt'){
+    /* Một lớp tối phủ toàn map rồi khoét vũng sáng ở đuốc / rương / merchant /
+       cổng / bệ boss. Bản phế tích không cần: vật liệu tự phân tầng độ sáng. */
+    dark=document.createElement('canvas'); dark.width=W; dark.height=H;
+    var d=dark.getContext('2d');
+    d.fillStyle='#0A1018'; d.fillRect(0,0,W,H);
+    d.globalCompositeOperation='destination-out';
+    /* Ánh sáng nền hai bậc. Đá cũng phải được gỡ một ít (12%) thì vân đá mới
+       còn nhìn thấy — bóp đen hoàn toàn thì khối đá lại đọc ra mảng trống,
+       đúng cái lỗi tường vô hình. Sàn gỡ tiếp cho tổng ~34%, nên vẫn giữ đúng
+       luật "sàn sáng hơn đá một bậc" của bản thiết kế. */
+    d.fillStyle='rgba(0,0,0,.12)'; d.fillRect(0,0,W,H);
+    d.fillStyle='rgba(0,0,0,.26)';
+    for(var ty=0;ty<gh2;ty++) for(var tx=0;tx<gw2;tx++)
+      if(walk(tx,ty)) d.fillRect(tx*cell,ty*cell,cell,cell);
+    var hole=function(x,y,r,peak){
+      var gr=d.createRadialGradient(x,y,0,x,y,r);
+      gr.addColorStop(0,'rgba(0,0,0,'+peak+')');
+      gr.addColorStop(.5,'rgba(0,0,0,'+(peak*.55)+')');
+      gr.addColorStop(1,'rgba(0,0,0,0)');
+      d.fillStyle=gr; d.beginPath(); d.arc(x,y,r,0,7); d.fill();
+    };
+    torches.forEach(function(t){ hole(t.x,t.y,150,.85); });
+    MAPD.chests.forEach(function(c){ hole(c[0],c[1],80,.7); });
+    MAPD.merchants.forEach(function(m){ hole(m[0],m[1],110,.75); });
+    MAPD.gates.forEach(function(p){ hole(p[0],p[1],120,.8); });
+    hole(MAPD.boss[0],MAPD.boss[1],200,.8);
+    d.globalCompositeOperation='source-over';
+
+    /* Bloom ấm phủ lên lớp tối: nếu chỉ khoét lỗ thì vũng sáng vẫn là màu đá
+       xanh lạnh, không ra được cảm giác ánh đuốc. */
+    glow=document.createElement('canvas'); glow.width=W; glow.height=H;
+    var gl=glow.getContext('2d');
+    var warm=function(x,y,r,a,c){
+      var gr=gl.createRadialGradient(x,y,0,x,y,r);
+      gr.addColorStop(0,c.replace('$',a)); gr.addColorStop(1,c.replace('$',0));
+      gl.fillStyle=gr; gl.beginPath(); gl.arc(x,y,r,0,7); gl.fill();
+    };
+    torches.forEach(function(t){ warm(t.x,t.y,110,.20,'rgba(240,165,75,$)'); });
+    MAPD.chests.forEach(function(c){ warm(c[0],c[1],64,.16,'rgba(240,165,75,$)'); });
+    MAPD.merchants.forEach(function(m){ warm(m[0],m[1],92,.17,'rgba(240,165,75,$)'); });
+    MAPD.gates.forEach(function(p){ warm(p[0],p[1],100,.20,'rgba(176,143,212,$)'); });
+    warm(MAPD.boss[0],MAPD.boss[1],170,.16,'rgba(232,85,48,$)');
+    /* Giữ bloom NẰM TRÊN SÀN. Để nó tràn lên mặt đá thì ô đá cạnh đuốc sáng
+       ngang chỗ sàn tối, và luật đọc map "sàn luôn sáng hơn đá" gãy ngay tại
+       chỗ đông đuốc nhất. */
+    gl.globalCompositeOperation='destination-in';
+    gl.fillStyle='#fff';
+    for(var wy=0;wy<gh2;wy++) for(var wx=0;wx<gw2;wx++)
+      if(walk(wx,wy)) gl.fillRect(wx*cell,wy*cell,cell,cell);
+    gl.globalCompositeOperation='source-over';
+  } else {
+    /* phế tích: vignette nhẹ ở rìa để mắt tự dồn về tâm */
+    var vg=g.createRadialGradient(W/2,H/2,640,W/2,H/2,1500);
+    vg.addColorStop(0,'rgba(8,12,6,0)'); vg.addColorStop(1,'rgba(8,12,6,.55)');
+    g.fillStyle=vg; g.fillRect(0,0,W,H);
+  }
+
+  TERR={skin:skin, ground:gc, dark:dark, glow:glow};
 }
 
 function drawGround(){
-  var g=64, vw=cv.width/ZOOM, vh=cv.height/ZOOM;
-  var x0=Math.floor(cam.x/g)*g, y0=Math.floor(cam.y/g)*g;
-  ctx.strokeStyle='#1E1726'; ctx.lineWidth=1/ZOOM;
-  ctx.beginPath();
-  for(var x=x0;x<cam.x+vw+g;x+=g){ ctx.moveTo(x,cam.y); ctx.lineTo(x,cam.y+vh); }
-  for(var y=y0;y<cam.y+vh+g;y+=g){ ctx.moveTo(cam.x,y); ctx.lineTo(cam.x+vw,y); }
-  ctx.stroke();
-  /* biên map */
-  ctx.strokeStyle='#40314C'; ctx.lineWidth=2;
-  ctx.strokeRect(0,0,CFG.MW,CFG.MH);
-  /* tường */
-  CFG.WALLS.forEach(function(w){
-    ctx.fillStyle='#271F33'; ctx.fillRect(w.x,w.y,w.w,w.h);
-    ctx.strokeStyle='#40314C'; ctx.lineWidth=1; ctx.strokeRect(w.x+.5,w.y+.5,w.w-1,w.h-1);
+  if(!MAPD){ ctx.fillStyle='#151019'; ctx.fillRect(0,0,CFG.MW,CFG.MH); return; }
+  if(!TERR || TERR.skin!==MAPD.skin) buildTerrain();
+  /* chỉ blit phần đang nhìn thấy */
+  var vw=cv.width/ZOOM, vh=cv.height/ZOOM;
+  var sx=Math.max(0,Math.floor(cam.x)), sy=Math.max(0,Math.floor(cam.y));
+  var sw=Math.min(CFG.MW-sx,Math.ceil(vw)+2), sh=Math.min(CFG.MH-sy,Math.ceil(vh)+2);
+  if(sw>0&&sh>0) ctx.drawImage(TERR.ground,sx,sy,sw,sh,sx,sy,sw,sh);
+}
+
+/* Lớp tối của hầm mộ — vẽ SAU nhân vật để bóng đổ lên cả người chơi, rồi phủ
+   bloom ấm để vũng đuốc ra màu lửa chứ không phải màu đá xanh. */
+function drawDark(){
+  if(!TERR||!TERR.dark) return;
+  var vw=cv.width/ZOOM, vh=cv.height/ZOOM;
+  var sx=Math.max(0,Math.floor(cam.x)), sy=Math.max(0,Math.floor(cam.y));
+  var sw=Math.min(CFG.MW-sx,Math.ceil(vw)+2), sh=Math.min(CFG.MH-sy,Math.ceil(vh)+2);
+  if(sw<=0||sh<=0) return;
+  ctx.globalAlpha=.55;                     /* dark:.55 theo bảng màu bản thiết kế */
+  ctx.drawImage(TERR.dark,sx,sy,sw,sh,sx,sy,sw,sh);
+  ctx.globalAlpha=1;
+  if(TERR.glow){
+    ctx.globalCompositeOperation='lighter';
+    ctx.drawImage(TERR.glow,sx,sy,sw,sh,sx,sy,sw,sh);
+    ctx.globalCompositeOperation='source-over';
+  }
+}
+
+/* Vũng độc / vũng nguyền nằm lại trên sân. Trước đây vẽ bằng một hình tròn
+   phẳng alpha .22 — không cùng ngôn ngữ với hiệu ứng pixel còn lại, và vũng
+   nguyền còn tô nhầm màu vàng thay vì tím. Giờ giao cho effects.js vẽ, đúng
+   bán kính sát thương server gửi. */
+function drawPools(){
+  var now=performance.now();
+  cur.PO.forEach(function(p){
+    if(window.ZAFx) ZAFx.pool(ctx,{x:p.x,y:p.y,r:p.r,ty:p.ty,t:p.t,now:now});
+    else { ctx.globalAlpha=.22; ctx.fillStyle=p.ty==='curse'?'#c58cff':'#7bd67b';
+           ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill(); ctx.globalAlpha=1; }
   });
 }
 
-function drawPools(){
-  cur.PO.forEach(function(p){
-    ctx.globalAlpha=.22;
-    ctx.fillStyle=p.ty==='poison'?'#7bd67b':'#ffd479';
-    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill();
-    ctx.globalAlpha=1;
-  });
+/* Vị trí đã nội suy của một slot — dùng cho hiệu ứng bám người. */
+function playerAt(slot,alpha){
+  if(!cur||!cur.P) return null;
+  var p=null;
+  for(var i=0;i<cur.P.length;i++) if(cur.P[i].s===slot){ p=cur.P[i]; break; }
+  if(!p||!p.al||p.es) return null;
+  var pp=prev?prev.P.find(function(o){return o.s===slot}):null;
+  return { x: pp?lerp(pp.x,p.x,alpha):p.x, y: pp?lerp(pp.y,p.y,alpha):p.y };
 }
 
 function drawChests(){
   cur.C.forEach(function(c){
-    if(c.o){ ctx.globalAlpha=.3; }
-    ctx.fillStyle=c.o?'#3A2F45':'#C9A961';
-    ctx.fillRect(c.x-11,c.y-8,22,16);
-    ctx.fillStyle=c.o?'#2A2233':'#8a6a2c';
-    ctx.fillRect(c.x-11,c.y-2,22,4);
-    ctx.globalAlpha=1;
+    if(c.o){                                  /* đã mở: chỉ còn cái vỏ tối */
+      ctx.globalAlpha=.34;
+      ctx.fillStyle='#4A3520'; ctx.fillRect(c.x-15,c.y-10,30,22);
+      ctx.fillStyle='#6B4A2E'; ctx.fillRect(c.x-15,c.y-14,30,6);
+      ctx.globalAlpha=1;
+      return;
+    }
+    var gr=ctx.createRadialGradient(c.x,c.y,0,c.x,c.y,60);
+    gr.addColorStop(0,'rgba(240,165,75,.40)'); gr.addColorStop(1,'rgba(240,165,75,0)');
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(c.x,c.y,60,0,7); ctx.fill();
+
+    ctx.fillStyle='rgba(12,18,7,.42)';
+    ctx.beginPath(); ctx.ellipse(c.x,c.y+13,17,5,0,0,7); ctx.fill();
+
+    ctx.fillStyle='#6B4A2E'; ctx.fillRect(c.x-15,c.y-3,30,15);      /* thân */
+    ctx.fillStyle='#F0A54B'; ctx.fillRect(c.x-15,c.y-12,30,9);      /* nắp */
+    ctx.fillStyle='#F7C880'; ctx.fillRect(c.x-15,c.y-12,30,2);      /* viền nắp */
+    ctx.fillStyle='#8A6238'; ctx.fillRect(c.x-15,c.y-3,30,3);       /* mạch */
+    ctx.fillStyle='#F7C880'; ctx.fillRect(c.x-3,c.y-5,7,9);         /* khoá */
   });
 }
 
 function drawMerchants(){
   cur.M.forEach(function(m){
-    var pulse=.75+.25*Math.sin(performance.now()/500);
-    ctx.globalAlpha=pulse;
-    ctx.strokeStyle='#C9A961'; ctx.lineWidth=1.5;
-    ctx.beginPath(); ctx.arc(m.x,m.y,26,0,7); ctx.stroke();
-    ctx.globalAlpha=1;
-    /* quầy hàng */
-    ctx.fillStyle='#6b5326'; ctx.fillRect(m.x-14,m.y-4,28,10);
-    ctx.fillStyle='#C9A961'; ctx.fillRect(m.x-16,m.y-8,32,5);
-    ctx.fillStyle='#8a6f2c'; ctx.fillRect(m.x-12,m.y+6,3,6); ctx.fillRect(m.x+9,m.y+6,3,6);
-    ctx.font='7px "JetBrains Mono", monospace'; ctx.fillStyle='#C9A961'; ctx.textAlign='center';
-    ctx.fillText('MERCHANT',m.x,m.y-16);
+    var gr=ctx.createRadialGradient(m.x,m.y,0,m.x,m.y,100);
+    gr.addColorStop(0,'rgba(240,165,75,.34)'); gr.addColorStop(1,'rgba(240,165,75,0)');
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(m.x,m.y,100,0,7); ctx.fill();
+
+    ctx.fillStyle='#4A331F'; ctx.fillRect(m.x-30,m.y+18,8,10); ctx.fillRect(m.x+22,m.y+18,8,10);
+    ctx.fillStyle='#6B4A2E'; ctx.fillRect(m.x-36,m.y-3,72,21);     /* thân quầy */
+    ctx.fillStyle='#8A6238'; ctx.fillRect(m.x-36,m.y-3,72,8);      /* mặt trên */
+
+    ctx.fillStyle='#7A4A6E'; ctx.fillRect(m.x-42,m.y-24,84,18);    /* mái */
+    ctx.fillStyle='#B08FD4'; ctx.fillRect(m.x-42,m.y-9,84,5);      /* gờ mái */
+    for(var i=0;i<6;i++){ ctx.fillStyle='#E0559A'; ctx.fillRect(m.x-40+i*14,m.y-9,7,5); }
+
+    ctx.fillStyle='#F0A54B'; ctx.fillRect(m.x-24,m.y-16,13,11);    /* hàng bày */
+    ctx.fillStyle='#B08FD4'; ctx.fillRect(m.x-6,m.y-16,11,11);
+    ctx.fillStyle='#EFE7DC'; ctx.fillRect(m.x+12,m.y-12,6,6);
+
+    ctx.font='7px "JetBrains Mono", monospace'; ctx.fillStyle='#F0A54B'; ctx.textAlign='center';
+    ctx.fillText('MERCHANT',m.x,m.y-30);
   });
 }
 
 function drawGates(){
-  var pulse=.55+.45*Math.sin(performance.now()/220);
+  var now=performance.now();
   cur.G.forEach(function(g){
-    ctx.globalAlpha=pulse;
-    ctx.strokeStyle='#B98BE8'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.arc(g.x,g.y,g.r,0,7); ctx.stroke();
-    ctx.globalAlpha=.16; ctx.fillStyle='#B98BE8';
-    ctx.beginPath(); ctx.arc(g.x,g.y,g.r,0,7); ctx.fill();
-    ctx.globalAlpha=1;
-    ctx.font='8px "JetBrains Mono", monospace'; ctx.fillStyle='#B98BE8'; ctx.textAlign='center';
-    ctx.fillText('CỔNG',g.x,g.y-g.r-8);
+    var gr=ctx.createRadialGradient(g.x,g.y-20,0,g.x,g.y-20,140);
+    gr.addColorStop(0,'rgba(176,143,212,.42)'); gr.addColorStop(1,'rgba(176,143,212,0)');
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(g.x,g.y-20,140,0,7); ctx.fill();
+
+    /* bệ bát giác trước cổng — chỗ đứng để tương tác */
+    var oct=function(rx,ry){
+      ctx.beginPath();
+      for(var i=0;i<8;i++){
+        var oa=i/8*Math.PI*2+Math.PI/8;
+        var px=g.x+Math.cos(oa)*rx, py=g.y+16+Math.sin(oa)*ry;
+        i?ctx.lineTo(px,py):ctx.moveTo(px,py);
+      }
+      ctx.closePath();
+    };
+    ctx.fillStyle='#6E6054'; oct(46,22); ctx.fill();
+    ctx.strokeStyle='#B08FD4'; ctx.lineWidth=3; oct(36,17); ctx.stroke();
+    for(var r=0;r<4;r++){
+      var ra=r/4*Math.PI*2+Math.PI/4;
+      ctx.fillStyle='#D8C4F4';
+      ctx.fillRect(g.x+Math.cos(ra)*30-2.5, g.y+16+Math.sin(ra)*13-2.5, 5,5);
+    }
+
+    /* vòm đá */
+    ctx.fillStyle='#7A6A5E';
+    ctx.fillRect(g.x-42,g.y-24,84,38);
+    ctx.beginPath(); ctx.arc(g.x,g.y-24,42,Math.PI,0); ctx.fill();
+    ctx.fillStyle='#A08D7C'; ctx.fillRect(g.x-42,g.y-24,10,38);
+
+    /* màn năng lượng */
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(g.x-30,g.y+12); ctx.lineTo(g.x-30,g.y-24);
+    ctx.arc(g.x,g.y-24,30,Math.PI,0); ctx.lineTo(g.x+30,g.y+12);
+    ctx.closePath(); ctx.clip();
+    ctx.fillStyle='#3A2A50'; ctx.fillRect(g.x-30,g.y-60,60,80);
+    ctx.fillStyle='#6F4E9C'; ctx.fillRect(g.x-30,g.y-56,60,74);
+    ctx.strokeStyle='rgba(200,178,236,.55)'; ctx.lineWidth=5;
+    for(var s=0;s<5;s++){
+      var off=((now/22+s*22)%110)-46;
+      ctx.beginPath(); ctx.moveTo(g.x-34+off,g.y+18); ctx.lineTo(g.x-34+off+34,g.y-54); ctx.stroke();
+    }
+    for(var p=0;p<7;p++){
+      var py=g.y+14-((now/9+p*38)%86);
+      ctx.fillStyle='rgba(232,220,255,.9)';
+      ctx.fillRect(g.x-26+(p*9)%52, py, 3,3);
+    }
+    ctx.restore();
+
+    /* đá đỉnh */
+    ctx.fillStyle='#C8BCA9'; ctx.fillRect(g.x-8,g.y-72,16,12);
+    ctx.fillStyle='#F0A54B'; ctx.fillRect(g.x-5,g.y-69,10,6);
+
+    ctx.font='8px "JetBrains Mono", monospace'; ctx.fillStyle='#B08FD4'; ctx.textAlign='center';
+    ctx.fillText('CỔNG',g.x,g.y-80);
   });
 }
 
@@ -1425,9 +1888,21 @@ function drawPlayers(alpha){
     if(p.cb){ ctx.strokeStyle='#C9A961'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(x,y,19,0,7); ctx.stroke(); }
     if(p.tau>0){ ctx.fillStyle='#9aa8b8'; ctx.font='8px Consolas'; ctx.textAlign='center'; ctx.fillText('◆'+p.tau,x,y+24); }
 
+    /* Trong sảnh, 6 người tụ ở quảng trường giếng thì 6 cái tên đè lên nhau.
+       Chỉ hiện tên người ở gần; tên mình thì luôn hiện. */
+    var nameA=1;
+    if(inLobby() && p.s!==MY){
+      var meNow=meP();
+      if(meNow){
+        var dd=Math.hypot(p.x-meNow.x,p.y-meNow.y);
+        nameA = dd<140 ? 1 : (dd<200 ? (200-dd)/60 : 0);
+      }
+    }
+    ctx.globalAlpha=nameA;
     ctx.font='8px "Be Vietnam Pro", sans-serif'; ctx.textAlign='center';
     ctx.fillStyle=p.s===MY?'#B98BE8':'#CBBDD6';
-    ctx.fillText(p.nm+' · '+p.lv,x,y-30);
+    if(nameA>0) ctx.fillText(p.nm+' · '+p.lv,x,y-30);
+    ctx.globalAlpha=1;
     ctx.fillStyle='#130E19'; ctx.fillRect(x-14,y-27,28,2.5);
     ctx.fillStyle='#c0392b'; ctx.fillRect(x-14,y-27,28*(p.hp/p.mhp),2.5);
   });
@@ -1502,12 +1977,35 @@ function drawEdge(){
 }
 
 /* ================= minimap ================= */
+/* Bản đồ nhỏ vẽ đúng lưới địa hình ở tỉ lệ 1 ô = 1 pixel, tô theo loại mặt
+   sàn để đọc ngay ra vành đai / quảng trường / phòng. */
+var MINI_TERR=null;
+var MINI_COL={
+  ruin:{'#':'#131C0C','.':'#4E7A34',',':'#7A6242','=':'#77836F'},
+  crypt:{'#':'#12181C','.':'#3E5250',',':'#3E5250','=':'#3E5250'}
+};
+function buildMiniTerrain(){
+  var gw=MAPD.rows[0].length, gh=MAPD.rows.length;
+  var c=document.createElement('canvas'); c.width=gw; c.height=gh;
+  var g=c.getContext('2d'), col=MINI_COL[MAPD.skin]||MINI_COL.ruin;
+  for(var y=0;y<gh;y++) for(var x=0;x<gw;x++){
+    g.fillStyle=col[MAPD.rows[y][x]]||col['#'];
+    g.fillRect(x,y,1,1);
+  }
+  MINI_TERR={skin:MAPD.skin, cv:c};
+}
+
 function drawMini(){
   var w=mini.width,h=mini.height, sx=w/CFG.MW, sy=h/CFG.MH;
   mctx.clearRect(0,0,w,h);
   mctx.fillStyle='rgba(12,9,16,.9)'; mctx.fillRect(0,0,w,h);
-  mctx.fillStyle='#271F33';
-  CFG.WALLS.forEach(function(o){ mctx.fillRect(o.x*sx,o.y*sy,o.w*sx,o.h*sy); });
+  /* Vật cản giờ là lưới chứ không phải 8 hình chữ nhật — vẽ một lần vào canvas
+     nhỏ rồi phóng lên, khỏi chạy 3750 fillRect mỗi frame. */
+  if(MAPD){
+    if(!MINI_TERR || MINI_TERR.skin!==MAPD.skin) buildMiniTerrain();
+    mctx.imageSmoothingEnabled=false;
+    mctx.drawImage(MINI_TERR.cv,0,0,w,h);
+  }
 
   var me=cur.me;
   var seeChest = me && (me.bl.pas==='vir'||me.bl.pas==='sag');

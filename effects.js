@@ -600,7 +600,8 @@
   const BY_SK = {
     whirl: e => spawn('whirl', { x: e.x, y: e.y, a: e.a || 0, r: e.r || 96, twice: !!e.x2 }),
     taunt: e => spawn('taunt', { x: e.x, y: e.y, r: e.r || 200 }),
-    frenzy: e => spawn('frenzy', { x: e.x, y: e.y, dur: e.dur || 6 }),
+    /* own = slot người thi triển: aura bám theo chân người chơi suốt 6 giây */
+    frenzy: e => spawn('frenzy', { x: e.x, y: e.y, dur: e.dur || 6, own: e.s }),
     pierce: e => spawn('pierce', { x: e.x, y: e.y, a: e.a || 0, r: e.r || 150 }),
     trap: e => spawn('trapBoom', { x: e.x, y: e.y, r: e.r || 90 }),
     volley: e => spawn('volley', { x: e.x, y: e.y, a: e.a || 0 }),
@@ -685,6 +686,48 @@
   const MON_ATK = { slime: 'monSplash', runner: 'monBite', brute: 'monSmash', caster: 'monBolt' };
 
   API.spawn = spawn; API.update = update; API.draw = draw; API.fromEvent = fromEvent;
+
+  /* Hiệu ứng có chủ (buff bám người, dấu bám quái) phải đi theo chủ chứ không
+     đứng lại chỗ lúc thi triển — Cuồng Nộ kéo 6 giây, chạy đi là aura rơi lại
+     phía sau. Gọi mỗi frame trước khi draw: fn(own) trả {x,y} hoặc null.
+     Trả null = chủ đã chết/biến mất, hiệu ứng tắt luôn. */
+  API.follow = function (fn) {
+    for (let i = list.length - 1; i >= 0; i--) {
+      const f = list[i];
+      if (f.own === undefined || f.own === null) continue;
+      const p = fn(f.own);
+      if (!p) { list.splice(i, 1); continue; }
+      f.x = p.x; f.y = p.y;
+    }
+  };
+
+  /* Vũng độc / vũng nguyền THƯỜNG TRÚ trên sân (ROOM.pools). Khác với hiệu ứng
+     một nhát: vòng đời do server giữ, client chỉ vẽ lại mỗi frame theo đúng
+     bán kính sát thương thật, nên nhìn là biết đứng đâu thì dính. */
+  API.pool = function (ctx, o) {
+    CTX = ctx; PX = Math.max(1, API.PX);
+    const sm = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
+    ctx.save();
+    const poison = o.ty !== 'curse';
+    const col = poison ? POISON : VIOLET, col2 = poison ? POISON_2 : INK;
+    const R = o.r || 70;
+    /* t: giây còn lại — nhạt dần ở 1 giây cuối để báo sắp tan */
+    const fade = o.t === undefined ? 1 : Math.max(.25, Math.min(1, o.t));
+    const wob = Math.sin((o.ph || 0) + (o.now || 0) / 420) * .04 + 1;
+
+    disc(o.x, o.y, R * wob, poison ? col : DARK, .18 * fade);
+    ring(o.x, o.y, R * wob, col, .55 * fade, 1);
+    ring(o.x, o.y, R * wob * .68, col, .28 * fade, 1);
+    /* bọt nổi lên: pha theo vị trí vũng nên hai vũng cạnh nhau không đập cùng nhịp */
+    for (let i = 0; i < 12; i++) {
+      const seed = { seed: (o.x + o.y * 7 + i * 31) % 997 };
+      const ph = (((o.now || 0) / 900) + rnd(seed, i)) % 1;
+      const a = rnd(seed, i + 4) * TAU, d = R * .9 * rnd(seed, i + 9);
+      px(o.x + Math.cos(a) * d, o.y + Math.sin(a) * d * YS - ph * 16,
+        ph < .45 ? col2 : col, (1 - ph) * .8 * fade, ph < .4 ? 2 : 1);
+    }
+    ctx.globalAlpha = 1; ctx.imageSmoothingEnabled = sm; ctx.restore();
+  };
   API.sign = (code, o) => spawn('z_' + code, o || {});
   /* đòn thường: cls 'sw'|'ar'|'mk' · quái 'slime'|'runner'|'brute'|'caster' */
   API.basic = (cls, o) => spawn(BASIC[cls] || 'atkSlash', o || {});

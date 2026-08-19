@@ -98,6 +98,42 @@ UI: nút lên cấp cạnh thanh máu (không tự bật bảng, đúng yêu c�
 - `map1-server.js`: `makePlayer()` nhận thêm tham số `sign`, lưu `p.sign` và gắn thẳng `bl.pas`. `join` đọc `m.sg`. `startMatch()` reset blessing nhưng **giữ lại** `pas: p.sign`. Bot không truyền cung nên tự bốc ngẫu nhiên.
 - `map1.html`: client **nối WebSocket ngay khi mở trang** thay vì đợi bấm nút — gói `welcome` mang `cfg` tới trước cả khi join, nhờ đó bảng chọn cung lấy được `BLESS[sg].pas` thật từ server thay vì chép lại mô tả ở client (chép thì cân bằng lại là lệch ngay). Nút vào map khoá tới khi chọn xong cung.
 
+### Địa hình map 1 — hai biến thể, dựng theo `design_handoff_map1_ruin`
+Bỏ hẳn mô hình cũ (sàn trống + 8 tường hình chữ nhật). Mỗi ván server bốc **HẦM MỘ** (`crypt`, 17 phòng nối hành lang, sàn 46,2%) hoặc **PHẾ TÍCH** (`ruin`, vành đai đường đất + 4 nan hoa vào quảng trường tâm, sàn 43,8%).
+
+- `assets/map1-layout.js`, `assets/map1-ruin-layout.js` — lưới 75×50 ô 32px + toạ độ boss/rương/bãi quái/merchant/cổng. Viết kiểu dùng được **cả hai phía**: `require()` ở server, `<script>` ở client (`window.MAP1_CRYPT` / `MAP1_RUIN`). Ký tự: `#` vật cản · `.` sàn/cỏ · `,` đường đất · `=` đá lát.
+- **Bốc skin ở `resetWorld()`**, không bao giờ ở client (6 người sẽ thấy 6 map khác nhau). `SKIN=crypt node map1-server.js` để ép một biến thể khi test.
+- `inWall()` giờ tra lưới thay vì quét `WALLS`. Phải lấy mẫu **9 điểm** (tâm + 4 cạnh + 4 góc) chứ không chỉ 4 góc — chỉ 4 góc thì ô cản nằm thẳng bên cạnh lọt qua khe giữa hai góc.
+- **Tìm đường bot**: đồ thị tầm nhìn theo góc tường không mô tả nổi lưới, thay bằng A* trên chính lưới đó + rút gọn đường bằng `losClear`. 0,2 ms/lần, nối được 100% các cặp điểm quan trọng trên cả hai bản đồ.
+- Ba chỗ trước đây thả thực thể bừa ra map nay phải bám sàn: quái sinh ở bãi (thu dần bán kính rồi mới về tâm bãi), quái **đi về camp** (tách trục X/Y như lúc đuổi), blessing rơi ngẫu nhiên (80 lượt thử, hết thì rơi vào ô rương).
+- Cổng thoát lúc di tản đứng đúng chỗ bản thiết kế vẽ vòm đá (crypt 4 cổng, ruin 2) thay vì rải ngẫu nhiên 5 cái.
+- **Chỗ đứng đầu ván**: lấy mẫu điểm-xa-nhất trên sàn, cách bệ boss ≥520px; bản phế tích ưu tiên vành đai đường đất. (Handoff để ngỏ câu này — đây là câu trả lời đã chọn.)
+- Client: nền + decal vẽ **một lần** vào canvas đệm 2400×1600 lúc nhận gói `map`, mỗi frame chỉ blit phần trong khung nhìn. Hầm mộ có thêm lớp tối `dark:.55` khoét vũng đuốc + bloom ấm; phế tích không cần lớp tối, chỉ vignette — vật liệu tự phân tầng độ sáng.
+- Prop (rương / quầy merchant / cổng dịch chuyển / bệ boss) **dùng chung một bộ** cho cả hai biến thể, đúng yêu cầu handoff.
+- Test: `node test-nav.js` (va chạm + tìm đường + chỗ đứng, chạy cả hai biến thể) và `node test-map1.js` (mở server thật, chơi hết một ván với 5 bot, soát không ai kẹt trong vật cản).
+
+### Bốn lỗi sau khi ghép địa hình mới (đã sửa)
+1. **Tường vô hình ở hầm ngục.** `paintCrypt` chỉ vẽ vành đá **sát sàn** (712/2019 ô); 1307 ô đá sâu bên trong để nguyên màu nền `#0C0A10` — đúng bằng màu ngoài rìa bản đồ. Nên nhìn ra là hư không chứ không phải đá, và không có mép nào để biết bản đồ hết ở đâu. Va chạm luôn đúng: mô phỏng 430k bước cho ra 0 lần lọt ra ngoài lưới, 0 lần đứng trong ô đặc. Sửa: vẽ **mọi** ô đá — ô sát sàn thành mặt tường, ô sâu thành khối đá tối có mạch so le. Lớp tối cũng phải gỡ 12% cho đá (sàn 34%) thì vân đá mới còn nhìn thấy, và bloom đuốc bị cắt cho chỉ nằm trên sàn — để nó tràn lên mặt đá thì luật "sàn luôn sáng hơn đá" gãy ngay chỗ đông đuốc nhất. Đo lại: sàn tối nhất 60 vs đá sáng nhất 53 → tách bạch, 0 ô đá đen như hư không. Bản phế tích không dính lỗi này vì vẽ đủ 100% ô cản.
+2. **Hồi sinh văng vào giữa khối đá rồi kẹt cứng.** Tôi giữ lại cú nhích ngẫu nhiên ±120px của bản cũ; địa hình mới có ~52% là đá nên cú nhích đó ném người chơi vào trong đá, `unstick()` quét vòng tròn 140px không tới được sàn nên đứng im vĩnh viễn. Sửa: **hồi sinh đúng chỗ chết** (chỗ đó chắc chắn đứng được, và 1.5 giây bất tử đã đủ thoát đám quái), cộng thêm lưới an toàn cuối cho `unstick()` — tìm thẳng trên lưới, mở rộng từng vành ô cho tới khi gặp ô đứng được, không bao giờ bỏ cuộc.
+3. **Vũng độc / vũng nguyền vẽ sai.** `drawPools` vẫn là hình tròn phẳng alpha .22 từ bản prototype, không cùng ngôn ngữ với hiệu ứng pixel, và vũng nguyền còn tô nhầm màu vàng `#ffd479` thay vì tím. Sửa: thêm `ZAFx.pool()` vẽ vũng thường trú bằng đúng bộ nguyên thuỷ pixel của `effects.js`, theo đúng bán kính sát thương server gửi; server gửi thêm `t` (giây còn lại) để vũng nhạt dần ở nhịp cuối thay vì tắt phụt.
+4. **Aura Cuồng Nộ không đi theo nhân vật.** Buff kéo 6 giây nhưng hiệu ứng sinh ra ở toạ độ lúc thi triển rồi đứng đó. Sửa bằng khái niệm **chủ hiệu ứng**: server gửi kèm `s` (slot), `effects.js` lưu `own`, thêm `ZAFx.follow(fn)` gọi mỗi frame trước khi vẽ — `fn(own)` trả vị trí đã nội suy, trả `null` thì hiệu ứng tắt luôn (chủ chết là aura tắt). Dùng lại được cho mọi buff bám người về sau.
+
+⚠ Gói `state` **làm tròn** `x`/`y` về số nguyên, nên đừng lấy toạ độ trong gói mà kiểm va chạm trực tiếp — lệch nửa pixel là báo nhầm kẹt tường ở chỗ thân chạm chéo một góc đá. `test-map1.js` định nghĩa "kẹt" là **không nhúc nhích được theo cả 8 hướng**, miễn nhiễm với chuyện làm tròn.
+
+### Sảnh chờ — biến thể NGÔI LÀNG
+Theo `design_handoff_lobby_village`. Sảnh **không theo skin map**: crypt hay ruin thì làng vẫn thế. Làng là chỗ duy nhất trong game có màu ấm, nên bước qua cổng mới thấy hai map kia tối.
+
+- Toạ độ gameplay **không đổi một con số nào**: sảnh 1200×820, spawn (600,690), Giáo Trưởng (380,430), Thợ Rèn (820,430), cổng (600,300) r58. `toLobby()`, `stepLobby()`, `inLobbyWall()` không sửa dòng nào.
+- `assets/lobby-village-walls.js` — 16 khối thay mảng `LOBBY.walls` cũ: viền cây 56px bốn cạnh, 6 thân nhà, hội trường, sạp rèn, giếng, hồ, 2 cây cổ thụ. Hai cây cổ thụ đặt đúng chỗ hai bệ đá cũ nên cảm giác va chạm quanh cổng giữ nguyên.
+- `assets/lobby-village.png` — nền 1200×820 vẽ 1:1, **là asset sản phẩm** chứ không phải ảnh tham chiếu. `drawLobby()` rút từ ~45 dòng còn: vẽ ảnh, nhịp sáng cổng, gọi `drawLobbyNpcs()`. Bỏ hẳn nền `#181220`, lưới 80px, thảm tím, vòng lặp vẽ `L.walls`.
+- Bảng `MIME` của server phải có `.png` — thiếu là ảnh về dạng `application/octet-stream`.
+
+**Lỗi bắt được khi làm việc này:** `doDash()` và `useSkill()` **không chặn theo phase**. Trong sảnh, `doDash` vẫn chạy và nó dùng `inWall()` tức lưới của **map đấu** chứ không phải tường làng — bấm Shift trong làng là lướt xuyên thẳng qua nhà, thả người chơi vào chỗ bất kỳ mà lưới map đấu cho phép. Đã chặn cả hai bằng `if (ROOM.ph === 'lobby') return;`. Đây cũng là câu trả lời cho câu hỏi số 1 của handoff (chạy nhanh trong làng: **không**).
+
+Câu hỏi số 2 (tên người chơi khác): hiện trong 140px, mờ dần tới 200px, tên mình luôn hiện — 6 người tụ ở quảng trường giếng thì 6 cái tên đè lên nhau.
+
+Còn một túi ~0,7% sàn ở góc phải dưới (sau hồ nước) mà bán kính thân 12px không lách vào được. Không có mốc gameplay nào trong đó nên để nguyên; `test-lobby.js` canh ngưỡng 1% để biết nếu nó phình ra.
+
 ### UI "Thiên Bàn" — áp vào `map1.html`
 Theo `UI_HANDOFF.md` + trang đối chiếu `Zodiac Arena UI.dc.html` của Claude Design. Chỉ đổi lớp trình bày, không đụng gameplay/netcode/`map1-server.js`.
 - **Font**: Cormorant Garamond (tên gọi, tiêu đề, đồng hồ, phím kỹ năng) · Be Vietnam Pro (câu văn) · JetBrains Mono (nhãn máy, số liệu). Nạp qua `<link>` Google Fonts — xem cảnh báo dưới.
