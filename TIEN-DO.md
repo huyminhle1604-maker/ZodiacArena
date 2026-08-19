@@ -134,6 +134,22 @@ Câu hỏi số 2 (tên người chơi khác): hiện trong 140px, mờ dần t�
 
 Còn một túi ~0,7% sàn ở góc phải dưới (sau hồ nước) mà bán kính thân 12px không lách vào được. Không có mốc gameplay nào trong đó nên để nguyên; `test-lobby.js` canh ngưỡng 1% để biết nếu nó phình ra.
 
+### HUD & UI pixel "THÁNH TÍCH" — thay bản Thiên Bàn
+Theo `design_handoff_pixel_hud` (phương án 1b). Chỉ đổi lớp trình bày: `map1-server.js`, netcode và vòng lặp game không sửa dòng nào.
+
+- **Font**: Silkscreen (nhãn máy, số liệu, phím) + Press Start 2P (đồng hồ, tiêu đề dải) + Be Vietnam Pro (mọi câu văn). Hai font bitmap **không có glyph tiếng Việt** — mọi chuỗi có dấu buộc phải ăn `--font-body`. Nhãn lấy chữ từ `CFG` của server thì không hardcode được, nên có hàm `px()` bỏ dấu + viết HOA tại chỗ.
+- **Bố cục HUD đổi hẳn** (kiểu Hades): máu + ví góc trên trái, dải blessing dọc cạnh trái, đồng hồ dán mép trên giữa, toast góc trên phải, hàng kỹ năng giữa dưới (LMB · E · R · SHF), minimap xuống góc dưới phải 192×128. Mọi thanh HP/MP/EXP/tiến trình là **ô rời** (`flex` + `gap:2px`), không `width:%` mượt; khiên vẽ **nối tiếp sau** máu chứ không đè.
+- **Cây kỹ năng** quay về **đồ thị** của arena cũ (`index.html`): lấy nguyên bảng `POS`, dựng `<svg>` `crispEdges` cho đường nối, node 60×60 vuông, tooltip 190px.
+- Minimap đổi ký hiệu từ **hình tròn sang hình vuông** — hình tròn ở cỡ 4–6px ra một cục nhoè, phá nhịp pixel của cả HUD.
+
+**Hai chỗ làm khác bản thiết kế, có lý do:**
+1. **Nhãn trạng thái slot trong hộp Blessing để 11.5px, không phải 10px.** Chuỗi ở đó có dấu ("trống", "thay Bọ Cạp") nên buộc ăn `--font-body`, mà chính checklist của handoff đặt sàn body là 11.5px — bản mock để 10px là tự mâu thuẫn. Chọn theo checklist cho đọc được.
+2. **Tooltip cây kỹ năng đặt bằng cách thử vị trí có kiểm va chạm**, không chỉ đẩy trái/phải theo nửa khung như handoff mô tả. Cách của handoff vẫn đè node ở hàng giữa — đo được 176 lần đè trên 80 vị trí thử. Bản hiện tại thử lần lượt 6 vị trí ứng viên (phải/trái con trỏ, rồi ra ngoài khung) và lấy cái đầu tiên không cắt node nào: 0 lần đè trên 112 vị trí thử.
+
+⚠ `#treeBox` phải có `flex:none`. Nó là flex item của `.bd`, không khoá thì bị co lại và hàng node dưới cùng (định vị tuyệt đối theo `POS`) bị cắt mất.
+
+⚠ Font nạp từ Google Fonts. Chơi LAN không mạng sẽ tụt về font hệ thống — muốn chắc thì tải 3 font về `fonts/` rồi khai `@font-face` (bảng `MIME` đã có sẵn `.woff2`).
+
 ### UI "Thiên Bàn" — áp vào `map1.html`
 Theo `UI_HANDOFF.md` + trang đối chiếu `Zodiac Arena UI.dc.html` của Claude Design. Chỉ đổi lớp trình bày, không đụng gameplay/netcode/`map1-server.js`.
 - **Font**: Cormorant Garamond (tên gọi, tiêu đề, đồng hồ, phím kỹ năng) · Be Vietnam Pro (câu văn) · JetBrains Mono (nhãn máy, số liệu). Nạp qua `<link>` Google Fonts — xem cảnh báo dưới.
