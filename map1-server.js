@@ -52,6 +52,7 @@ const CAMP_BURST = 3;              // mỗi lượt bù 3 con cho 3 bãi khác n
                                    // (~45 con/phút — đo thực tế: 6 người dọn
                                    //  hết 70 con trong ~6 phút nếu chậm hơn)
 const CHEST_RESPAWN = 45;          // rương mở xong 45 giây thì đầy lại
+const LOBBY_CD = Number(process.env.LOBBY_CD || 15);   // đếm ngược ở sảnh khi đã có người sẵn sàng
 
 /* ============================ CLASS ============================ */
 /* Giữ nguyên số liệu của bản chính để cảm giác không lệch. */
@@ -361,8 +362,25 @@ function stepLobby() {
     p.atGate = dist(LOBBY.gate, p) < LOBBY.gate.r;
   }
 
+  /* Trước đây phải ĐỦ TẤT CẢ mới đi, nên một người AFK là khoá cả phòng. Giờ:
+   * tất cả sẵn sàng thì vào ngay, còn chỉ cần MỘT người sẵn sàng là chạy đếm
+   * ngược — hết giờ cả sảnh đi cùng. Ai chưa kịp chọn cung thì vào không có
+   * blessing bị động, thà thế còn hơn ngồi chờ một người không bao giờ bấm. */
   const humans = R.players.filter(p => !p.bot);
-  if (humans.length && humans.every(p => p.ready)) startMatch();
+  if (!humans.length) { R.cd = -1; return; }
+  if (humans.every(p => p.ready)) { startMatch(); return; }
+
+  if (humans.some(p => p.ready)) {
+    if (R.cd < 0) {
+      R.cd = LOBBY_CD;
+      ev({ k: 'toast', s: -1, m: '⏳ Cổng dịch chuyển đang mở — ' + LOBBY_CD + ' giây nữa cả sảnh vào map!' });
+    }
+    R.cd -= DT;
+    if (R.cd <= 0) startMatch();
+  } else if (R.cd >= 0) {
+    R.cd = -1;      // người cuối cùng huỷ sẵn sàng thì dừng đếm
+    ev({ k: 'toast', s: -1, m: 'Đã huỷ đếm ngược vào map.' });
+  }
 }
 
 /* Áp vũ khí đã mua vào chỉ số — gọi trong recompute. */
@@ -642,6 +660,7 @@ function makeRoom() {
     merchantOpen: -1, merchantT: 0, merchantRot: 0, stock: [], weaken: 0,
     bossUp: false, bossDead: false, bossId: 0,
     campT: 0, blessT: 0, buffT: 0,
+    cd: -1,               // đếm ngược ở sảnh; -1 = chưa ai bấm sẵn sàng
     results: null
   };
 }
@@ -2030,6 +2049,7 @@ function finish() {
 }
 
 function startMatch() {
+  ROOM.cd = -1;
   resetWorld();
   broadcastMap();          // biến thể vừa bốc — client dựng lại lớp nền theo gói này
   /* thêm bot cho đủ chỗ */
@@ -2106,6 +2126,13 @@ function snapshot(forSlot) {
     PO: inLobby ? [] : R.pools.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), r: p.r, ty: p.ty, t: Math.round(p.t * 10) / 10 })),
     boss: R.bossUp ? 1 : (R.bossDead ? 2 : 0),
     lobby: R.ph === 'lobby' ? 1 : 0,
+    /* Tình hình chờ ở sảnh — client hiện "2/3 sẵn sàng" và đồng hồ đếm ngược. */
+    lb: inLobby ? {
+      n: R.players.filter(p => !p.bot).length,
+      r: R.players.filter(p => !p.bot && p.ready).length,
+      cd: R.cd >= 0 ? Math.ceil(R.cd) : -1,
+      w: R.players.filter(p => !p.bot && !p.ready).map(p => p.nm).slice(0, 5)
+    } : undefined,
     bossIn: R.ph === 'playing' && !R.bossUp && !R.bossDead ? Math.max(0, Math.round(BOSS_AT - R.t)) : -1,
     ev: R.ev
   };
@@ -2231,7 +2258,19 @@ function onClose(ws) {
 function handleMsg(ws, m) {
   if (m.t === 'join') {
     if (ws.player) return;
-    if (ROOM.ph !== 'lobby') { ROOM = makeRoom(); }      // ván cũ xong thì mở ván mới
+    /* Phòng trống thì ván cũ bỏ đi được, dựng phòng mới cho người vừa vào.
+       Nhưng nếu còn người đang chơi thì TUYỆT ĐỐI không thay ROOM — thay là
+       xoá sạch họ khỏi ROOM.players và cả bọn đứng hình giữa ván. Người tới
+       muộn chờ ván sau, client tự thử lại vài giây một lần. */
+    if (ROOM.ph !== 'lobby') {
+      if (ROOM.players.some(q => !q.bot && q.ws)) {
+        const left = ROOM.ph === 'over' ? 0
+          : Math.max(0, Math.round((ROOM.ph === 'playing' ? MATCH_TIME : EXODUS_TIME) - ROOM.t));
+        send(ws, JSON.stringify({ t: 'wait', tm: left }));
+        return;
+      }
+      ROOM = makeRoom();
+    }
     const humans = ROOM.players.filter(p => !p.bot).length;
     if (humans >= MAXP) { send(ws, JSON.stringify({ t: 'full' })); return; }
     const used = ROOM.players.map(p => p.slot);
