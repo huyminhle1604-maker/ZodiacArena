@@ -422,6 +422,7 @@
     </div>
 
     <button class="btn" id="goBtn">VAO SANH</button>
+    <div id="waitmsg" style="display:none;margin-top:10px;padding:10px 12px;border:1px solid var(--gold);color:var(--gold);font-size:12px;line-height:1.5"></div>
 
     <div class="keys">
       <kbd>WASD</kbd><span>Di chuyển</span>
@@ -434,6 +435,11 @@
   </div>
 </div>
 
+<!-- Dải chờ ở sảnh: bảng cổng đóng lại rồi vẫn phải biết đang chờ ai. -->
+<div id="lobwait" class="hide" style="position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:40;
+  background:rgba(12,10,16,.92);border:1px solid var(--gold);padding:8px 16px;text-align:center;
+  font-size:12px;color:var(--ink);letter-spacing:.5px;pointer-events:none"></div>
+
 <div id="offer" class="modal hide"></div>
 <div id="shop" class="modal hide"></div>
 <div id="over" class="modal hide"></div>
@@ -443,7 +449,7 @@
 <script>
 /* ================= trạng thái ================= */
 var CFG=null, WS=null, MY=-1, cur=null, prev=null, curT=0, prevT=0;
-var CLS='sw', joined=false, dead=false;
+var CLS='sw', joined=false, dead=false, pendingName='Người chơi';
 var keys={}, mouse={x:0,y:0}, firing=false;
 var cam={x:0,y:0};
 var ZOOM=2.4;                 /* camera bám sát nhân vật kiểu 33 Immortals */
@@ -555,6 +561,7 @@ addEventListener('resize',resize); resize();
 document.getElementById('goBtn').onclick=function(){
   if(!WS||WS.readyState!==1) return;
   var nm=document.getElementById('nameIn').value.trim()||'Người chơi';
+  pendingName=nm;
   WS.send(JSON.stringify({t:'join',nm:nm}));
 };
 document.getElementById('nameIn').addEventListener('keydown',function(e){ if(e.key==='Enter') document.getElementById('goBtn').click(); });
@@ -569,13 +576,34 @@ function connect(){
 }
 connect();
 function sendMsg(o){ if(WS&&WS.readyState===1) WS.send(JSON.stringify(o)); }
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+/* Vào lúc ván đang chạy: server không nhận nữa (nhận là phá ván của người khác).
+   Ngồi lại màn hình này và tự gõ cửa mỗi 4 giây tới khi ván xong về sảnh. */
+var waitTimer=null;
+function showWait(tm){
+  var el=document.getElementById('waitmsg');
+  el.style.display='block';
+  el.innerHTML='<b>Ván đang diễn ra'+(tm>0?' — còn khoảng '+tm+' giây':'')+'</b><br>'+
+               'Bạn sẽ tự động vào sảnh ngay khi ván này kết thúc.';
+  var btn=document.getElementById('goBtn');
+  btn.disabled=true; btn.textContent='DANG CHO VAN SAU...';
+  if(waitTimer) return;
+  waitTimer=setInterval(function(){
+    if(joined){ clearInterval(waitTimer); waitTimer=null; return; }
+    sendMsg({t:'join',nm:pendingName});
+  },4000);
+}
 
 function onMsg(m){
   if(m.t==='welcome'){ CFG=m.cfg; if(m.map) setMap(m.map); return; }
   if(m.t==='map'){ setMap(m.map||m); return; }
   if(m.t==='full'){ alert('Phòng đã đầy'); return; }
+  if(m.t==='wait'){ showWait(m.tm||0); return; }
   if(m.t==='joined'){
     MY=m.slot; joined=true;
+    if(waitTimer){ clearInterval(waitTimer); waitTimer=null; }
+    document.getElementById('waitmsg').style.display='none';
     document.getElementById('intro').classList.add('hide');
     document.getElementById('hud').classList.remove('hide');
     buildSlotHud();
@@ -866,6 +894,15 @@ function renderNpc(){
     if(ready) b3+='<div class="pasbox"><b>'+SIGN_GLYPH[M.sign]+' '+CFG.SIGN_NM[M.sign]+' · '+CFG.SIGN_THEME[M.sign]+'</b>'+
                   '<i style="font-style:normal">Bị động: '+CFG.BLESS[M.sign].pas+'</i></div>';
     else b3+='<div class="pasbox">Chọn một cung để xem hiệu ứng bị động — chưa chọn thì chưa đi được.</div>';
+    /* Ai đã bấm, ai chưa, còn bao lâu — người chơi cần thấy ngay tại đây,
+       chứ không phải đoán vì sao bấm rồi mà chưa đi. */
+    var LB=cur.lb;
+    if(LB&&(LB.n>1||M.ready)){
+      var st='<b>'+LB.r+'/'+LB.n+' người đã sẵn sàng</b>';
+      if(LB.cd>=0) st+=' · vào map sau <b style="color:var(--gold)">'+LB.cd+'s</b>';
+      if(LB.w&&LB.w.length) st+='<br>Đang chờ: '+LB.w.map(esc).join(', ');
+      b3+='<div class="pasbox">'+st+'</div>';
+    }
     b3+='<div class="mfoot"><span class="fn">Tới được cổng thì giữ token, không kịp thì mất trắng.</span>'+
         (ready?'<button class="btn" id="enterBtn">VAO MAP 1</button>'
               :'<button class="btn sec" id="closeNpc">QUAY LAI</button>')+'</div>';
@@ -1112,6 +1149,15 @@ function syncHud(){
     closeShop(); closeTree();
   }
   document.getElementById('hud').classList.toggle('inlobby',lob);
+
+  var lw=document.getElementById('lobwait'), LBH=lob?cur.lb:null;
+  if(LBH&&LBH.r>0){
+    lw.classList.remove('hide');
+    var t2='<b>'+LBH.r+'/'+LBH.n+' SAN SANG</b>';
+    if(LBH.cd>=0) t2+=' <span style="color:var(--gold)">· vào map sau '+LBH.cd+'s</span>';
+    if(LBH.w&&LBH.w.length) t2+='<br><span style="opacity:.75">Đang chờ: '+LBH.w.map(esc).join(', ')+'</span>';
+    lw.innerHTML=t2;
+  } else lw.classList.add('hide');
 
   document.getElementById('whoNm').textContent=me.nm;
   document.getElementById('whoCls').textContent=CLS_PX[M.cls]||'';

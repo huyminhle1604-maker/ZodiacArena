@@ -168,6 +168,19 @@ Bốn chỗ làm khác handoff:
 
 ---
 
+### Sảnh chờ nhiều người — đếm ngược, không khoá vì AFK (19/08/2026)
+Ba thay đổi để rủ bạn bè chơi chung mà không vướng nhau:
+- **Đếm ngược 15 giây** (`LOBBY_CD`, đổi bằng biến môi trường). Trước đây `stepLobby()` đòi
+  `humans.every(p => p.ready)` nên một người AFK là khoá cả phòng. Giờ: tất cả sẵn sàng thì vào
+  ngay, chỉ MỘT người sẵn sàng cũng chạy đếm ngược, hết giờ cả sảnh đi cùng (ai chưa chọn cung
+  thì vào không có blessing bị động). Người cuối cùng huỷ sẵn sàng thì đếm ngược dừng lại.
+- **Cho biết đang chờ ai**: gói state thêm `lb {n, r, cd, w}`. Client vẽ dải "2/3 SAN SANG · vào
+  map sau 9s / Đang chờ: <tên>" ở đỉnh màn hình sảnh (`#lobwait`) và lặp lại trong bảng cổng.
+- **Vào giữa ván không phá ván đang chạy**: chỗ join cũ làm `if (ROOM.ph !== 'lobby') ROOM = makeRoom()`
+  — thay phòng là xoá sạch người đang chơi khỏi `ROOM.players`, cả bọn đứng hình. Giờ chỉ dựng phòng
+  mới khi KHÔNG còn người thật nào; còn lại server trả `{t:'wait', tm}`, client hiện màn hình chờ và
+  tự gõ cửa 4 giây một lần cho tới khi ván xong về sảnh.
+
 ## Ba chỗ làm khác `SPRITES_HANDOFF.md` (cân nhắc lại nếu cần)
 
 1. **Xác quái dùng diff `ANIM` thay vì event `die`** — event `die` không mang `r`, mà `scale = r/8` cần nó; cách diff còn bắt được quái chết vì độc.
