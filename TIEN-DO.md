@@ -120,6 +120,20 @@ Bỏ hẳn mô hình cũ (sàn trống + 8 tường hình chữ nhật). Mỗi v
 
 ⚠ Gói `state` **làm tròn** `x`/`y` về số nguyên, nên đừng lấy toạ độ trong gói mà kiểm va chạm trực tiếp — lệch nửa pixel là báo nhầm kẹt tường ở chỗ thân chạm chéo một góc đá. `test-map1.js` định nghĩa "kẹt" là **không nhúc nhích được theo cả 8 hướng**, miễn nhiễm với chuyện làm tròn.
 
+### Sảnh chờ — biến thể NGÔI LÀNG
+Theo `design_handoff_lobby_village`. Sảnh **không theo skin map**: crypt hay ruin thì làng vẫn thế. Làng là chỗ duy nhất trong game có màu ấm, nên bước qua cổng mới thấy hai map kia tối.
+
+- Toạ độ gameplay **không đổi một con số nào**: sảnh 1200×820, spawn (600,690), Giáo Trưởng (380,430), Thợ Rèn (820,430), cổng (600,300) r58. `toLobby()`, `stepLobby()`, `inLobbyWall()` không sửa dòng nào.
+- `assets/lobby-village-walls.js` — 16 khối thay mảng `LOBBY.walls` cũ: viền cây 56px bốn cạnh, 6 thân nhà, hội trường, sạp rèn, giếng, hồ, 2 cây cổ thụ. Hai cây cổ thụ đặt đúng chỗ hai bệ đá cũ nên cảm giác va chạm quanh cổng giữ nguyên.
+- `assets/lobby-village.png` — nền 1200×820 vẽ 1:1, **là asset sản phẩm** chứ không phải ảnh tham chiếu. `drawLobby()` rút từ ~45 dòng còn: vẽ ảnh, nhịp sáng cổng, gọi `drawLobbyNpcs()`. Bỏ hẳn nền `#181220`, lưới 80px, thảm tím, vòng lặp vẽ `L.walls`.
+- Bảng `MIME` của server phải có `.png` — thiếu là ảnh về dạng `application/octet-stream`.
+
+**Lỗi bắt được khi làm việc này:** `doDash()` và `useSkill()` **không chặn theo phase**. Trong sảnh, `doDash` vẫn chạy và nó dùng `inWall()` tức lưới của **map đấu** chứ không phải tường làng — bấm Shift trong làng là lướt xuyên thẳng qua nhà, thả người chơi vào chỗ bất kỳ mà lưới map đấu cho phép. Đã chặn cả hai bằng `if (ROOM.ph === 'lobby') return;`. Đây cũng là câu trả lời cho câu hỏi số 1 của handoff (chạy nhanh trong làng: **không**).
+
+Câu hỏi số 2 (tên người chơi khác): hiện trong 140px, mờ dần tới 200px, tên mình luôn hiện — 6 người tụ ở quảng trường giếng thì 6 cái tên đè lên nhau.
+
+Còn một túi ~0,7% sàn ở góc phải dưới (sau hồ nước) mà bán kính thân 12px không lách vào được. Không có mốc gameplay nào trong đó nên để nguyên; `test-lobby.js` canh ngưỡng 1% để biết nếu nó phình ra.
+
 ### UI "Thiên Bàn" — áp vào `map1.html`
 Theo `UI_HANDOFF.md` + trang đối chiếu `Zodiac Arena UI.dc.html` của Claude Design. Chỉ đổi lớp trình bày, không đụng gameplay/netcode/`map1-server.js`.
 - **Font**: Cormorant Garamond (tên gọi, tiêu đề, đồng hồ, phím kỹ năng) · Be Vietnam Pro (câu văn) · JetBrains Mono (nhãn máy, số liệu). Nạp qua `<link>` Google Fonts — xem cảnh báo dưới.

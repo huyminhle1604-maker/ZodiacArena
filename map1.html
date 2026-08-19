@@ -1160,41 +1160,37 @@ function render(){
   stepFx();
 }
 
-/* ---- sảnh: nền, tường, 3 NPC, cổng dịch chuyển ---- */
+/* ---- sảnh: NGÔI LÀNG ----
+   Nền làng là MỘT ảnh 1200x820 vẽ 1:1 — không tile, không lớp ánh sáng: làng
+   sáng đều và ánh lửa đã nướng sẵn vào ảnh. Vòm đá, bệ rune, đường mòn, nhà
+   cửa đều nằm trong ảnh, nên ở đây chỉ còn nhịp sáng của cổng và 2 NPC.
+   Sảnh KHÔNG theo skin map: crypt hay ruin thì làng vẫn thế. */
+var LOB = new Image(); LOB.src = 'assets/lobby-village.png';
+var LOB_OK = false;
+LOB.onload = function(){ LOB_OK = true; };
+
 function drawLobby(){
   var L=CFG.LOBBY, now=performance.now();
 
-  /* nền lát đá + lưới thưa hơn map 1 cho ra cảm giác trong nhà */
-  ctx.fillStyle='#181220'; ctx.fillRect(0,0,L.W,L.H);
-  ctx.strokeStyle='#221A2C'; ctx.lineWidth=1/ZOOM;
-  ctx.beginPath();
-  for(var x=0;x<=L.W;x+=80){ ctx.moveTo(x,0); ctx.lineTo(x,L.H); }
-  for(var y=0;y<=L.H;y+=80){ ctx.moveTo(0,y); ctx.lineTo(L.W,y); }
-  ctx.stroke();
+  if(LOB_OK) ctx.drawImage(LOB,0,0,L.W,L.H);
+  else { ctx.fillStyle='#3D6B2F'; ctx.fillRect(0,0,L.W,L.H); }   /* ảnh chưa tải xong */
 
-  /* thảm dẫn từ chỗ xuất hiện lên cổng */
-  ctx.fillStyle='rgba(185,139,232,.05)';
-  ctx.fillRect(L.gate.x-70, L.gate.y-40, 140, 300);
-
-  /* tường */
-  L.walls.forEach(function(w){
-    ctx.fillStyle='#271F33'; ctx.fillRect(w.x,w.y,w.w,w.h);
-    ctx.strokeStyle='#40314C'; ctx.lineWidth=1; ctx.strokeRect(w.x+.5,w.y+.5,w.w-1,w.h-1);
-  });
-
-  /* cổng dịch chuyển */
+  /* cổng: chỉ còn nhịp sáng, phần hình đã nằm trong ảnh nền */
   var g=L.gate, pulse=.55+.45*Math.sin(now/220);
-  ctx.globalAlpha=pulse; ctx.strokeStyle='#B98BE8'; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.arc(g.x,g.y,g.r,0,7); ctx.stroke();
-  ctx.globalAlpha=.16; ctx.fillStyle='#B98BE8';
-  ctx.beginPath(); ctx.arc(g.x,g.y,g.r,0,7); ctx.fill();
+  ctx.globalAlpha=pulse*.5; ctx.fillStyle='#B98BE8';
+  ctx.beginPath(); ctx.arc(g.x,g.y,g.r*.7,0,7); ctx.fill();
   ctx.globalAlpha=1;
-  ctx.font='8px "JetBrains Mono", monospace'; ctx.fillStyle='#B98BE8'; ctx.textAlign='center';
-  ctx.fillText('CỔNG DỊCH CHUYỂN',g.x,g.y-g.r-10);
-  ctx.fillText('RA MAP 1',g.x,g.y-g.r-1);
+  /* nhãn rơi đúng lên màn năng lượng tím nên phải có nền, không thì chìm */
+  ctx.font='8px "JetBrains Mono", monospace'; ctx.textAlign='center';
+  ctx.fillStyle='rgba(12,10,16,.6)'; ctx.fillRect(g.x-30,g.y-g.r-16,60,12);
+  ctx.fillStyle='#D8C4F4'; ctx.fillText('RA MAP 1',g.x,g.y-g.r-7);
 
-  /* NPC — bệ đứng + ký hiệu + tên */
-  L.npcs.forEach(function(n){
+  drawLobbyNpcs();
+}
+
+/* NPC — bệ đứng + ký hiệu + tên. Giữ nguyên như bản cũ. */
+function drawLobbyNpcs(){
+  CFG.LOBBY.npcs.forEach(function(n){
     var near = cur.me && cur.me.npc===n.id;
     ctx.fillStyle='rgba(0,0,0,.34)';
     ctx.beginPath(); ctx.ellipse(n.x,n.y+13,14,5,0,0,7); ctx.fill();
@@ -1206,10 +1202,13 @@ function drawLobby(){
     ctx.fillStyle='#E8C0A0'; ctx.fillRect(n.x-5,n.y-20,10,10);
     ctx.font='13px serif'; ctx.fillStyle=near?'#FFE9A8':'#B9A8C8'; ctx.textAlign='center';
     ctx.fillText(n.g,n.x,n.y-24);
-    ctx.font='8px "Be Vietnam Pro", sans-serif'; ctx.fillStyle=near?'#F0E9F4':'#9E90AB';
-    ctx.fillText(n.nm,n.x,n.y+30);
-    ctx.font='7px "JetBrains Mono", monospace'; ctx.fillStyle='#70647B';
-    ctx.fillText(n.role.toUpperCase(),n.x,n.y+40);
+    /* nhãn có nền mờ: chữ sáng trên cỏ sáng thì chìm, bản cũ nền tím nên không lộ */
+    var w=Math.max(ctx.measureText(n.nm).width, 54)+12;
+    ctx.fillStyle='rgba(12,10,16,.55)'; ctx.fillRect(n.x-w/2,n.y+22,w,22);
+    ctx.font='8px "Be Vietnam Pro", sans-serif'; ctx.fillStyle=near?'#F0E9F4':'#CDBFD8';
+    ctx.fillText(n.nm,n.x,n.y+32);
+    ctx.font='7px "JetBrains Mono", monospace'; ctx.fillStyle='#9E90AB';
+    ctx.fillText(n.role.toUpperCase(),n.x,n.y+41);
   });
 }
 
@@ -1889,9 +1888,21 @@ function drawPlayers(alpha){
     if(p.cb){ ctx.strokeStyle='#C9A961'; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(x,y,19,0,7); ctx.stroke(); }
     if(p.tau>0){ ctx.fillStyle='#9aa8b8'; ctx.font='8px Consolas'; ctx.textAlign='center'; ctx.fillText('◆'+p.tau,x,y+24); }
 
+    /* Trong sảnh, 6 người tụ ở quảng trường giếng thì 6 cái tên đè lên nhau.
+       Chỉ hiện tên người ở gần; tên mình thì luôn hiện. */
+    var nameA=1;
+    if(inLobby() && p.s!==MY){
+      var meNow=meP();
+      if(meNow){
+        var dd=Math.hypot(p.x-meNow.x,p.y-meNow.y);
+        nameA = dd<140 ? 1 : (dd<200 ? (200-dd)/60 : 0);
+      }
+    }
+    ctx.globalAlpha=nameA;
     ctx.font='8px "Be Vietnam Pro", sans-serif'; ctx.textAlign='center';
     ctx.fillStyle=p.s===MY?'#B98BE8':'#CBBDD6';
-    ctx.fillText(p.nm+' · '+p.lv,x,y-30);
+    if(nameA>0) ctx.fillText(p.nm+' · '+p.lv,x,y-30);
+    ctx.globalAlpha=1;
     ctx.fillStyle='#130E19'; ctx.fillRect(x-14,y-27,28,2.5);
     ctx.fillStyle='#c0392b'; ctx.fillRect(x-14,y-27,28*(p.hp/p.mhp),2.5);
   });

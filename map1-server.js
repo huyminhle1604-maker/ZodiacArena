@@ -27,6 +27,10 @@ const LAYOUTS = {
   ruin: require('./assets/map1-ruin-layout.js')
 };
 
+/* Sảnh là NGÔI LÀNG — map riêng, không theo skin của map đấu. Làng là chỗ duy
+ * nhất trong game có màu ấm, nên bước qua cổng mới thấy hai map kia tối. */
+const LOBBY_WALLS = require('./assets/lobby-village-walls.js');
+
 const PORT = Number(process.env.PORT) || 8081;
 const ROOT = __dirname;
 
@@ -295,12 +299,7 @@ function canAlloc(p, id) {
 const LOBBY = {
   W: 1200, H: 820,
   spawn: { x: 600, y: 690 },
-  walls: [
-    { x: 0, y: 0, w: 1200, h: 24 }, { x: 0, y: 796, w: 1200, h: 24 },
-    { x: 0, y: 0, w: 24, h: 820 }, { x: 1176, y: 0, w: 24, h: 820 },
-    /* hai bệ đá hai bên cổng */
-    { x: 300, y: 200, w: 40, h: 130 }, { x: 860, y: 200, w: 40, h: 130 }
-  ],
+  walls: LOBBY_WALLS,
   /* Chọn cung KHÔNG có NPC riêng — bước vào cổng là hiện bảng chọn luôn,
      vì đó là lúc người chơi thực sự cần quyết định. */
   npcs: [
@@ -1152,6 +1151,7 @@ function attack(p) {
 
 /* ============================ KỸ NĂNG ============================ */
 function useSkill(p, s) {
+  if (ROOM.ph === 'lobby') return;           // sảnh không đánh nhau
   if (!p.alive || p.stun > 0) return;
   if (s === 'E') {
     let cost = ESKILL[p.cls].cost;
@@ -1278,6 +1278,10 @@ function doR(p) {
 
 /* ============================ LƯỚT ============================ */
 function doDash(p) {
+  /* Sảnh không có chiến đấu và KHÔNG có lướt. Đây không chỉ là luật thiết kế:
+     doDash dùng inWall() tức lưới của map đấu, nên lướt trong làng sẽ xuyên
+     thẳng qua nhà và thả người chơi vào chỗ bất kỳ mà lưới map đấu cho phép. */
+  if (ROOM.ph === 'lobby') return;
   if (!p.alive || p.stun > 0) return;
   const B = p.bl.dash;
   if (B === 'pis') { if (p.mp < 10) return; p.mp -= 10; }
@@ -2135,7 +2139,10 @@ setInterval(() => {
 }, TICK);
 
 /* ============================ HTTP + WEBSOCKET ============================ */
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' };
+const MIME = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
+  '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.woff2': 'font/woff2'
+};
 
 const server = http.createServer((req, res) => {
   let url = req.url.split('?')[0];
