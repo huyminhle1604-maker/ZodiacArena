@@ -53,6 +53,10 @@ const CAMP_BURST = 3;              // mỗi lượt bù 3 con cho 3 bãi khác n
                                    //  hết 70 con trong ~6 phút nếu chậm hơn)
 const CHEST_RESPAWN = 45;          // rương mở xong 45 giây thì đầy lại
 const LOBBY_CD = Number(process.env.LOBBY_CD || 15);   // đếm ngược ở sảnh khi đã có người sẵn sàng
+/* Hệ số tỉ lệ rơi blessing. Chỉ để test kéo được luồng nhặt-chọn-nâng cấp ra
+   khỏi tay xúc xắc (BLESS_RATE=8 node ...), giống cách SKIN= ép biến thể map.
+   Mặc định 1 = y nguyên nhịp chơi thật. */
+const BLESS_RATE = Number(process.env.BLESS_RATE || 1);
 
 /* ============================ CLASS ============================ */
 /* Giữ nguyên số liệu của bản chính để cảm giác không lệch. */
@@ -83,6 +87,22 @@ const SIGN_THEME = {
 const SLOTS = ['atk', 'e', 'r', 'pas', 'dash'];
 const SLOT_NM = { atk: 'Đánh thường', e: 'Kỹ năng E', r: 'Kỹ năng R', pas: 'Bị động', dash: 'Lướt' };
 
+/* --- Cơ chế nhặt kiểu Hades ---------------------------------------------
+ * Trước đây mỗi lần nhặt bốc cung ĐỀU nhau, nên gom đủ 5 slot cùng một cung
+ * là chuyện gần như không xảy ra, mà BỘ HỢP CUNG lại là đích ngắm của cả hệ
+ * blessing. Giờ blessing rơi ra là MỘT vật phẩm CHUNG (không mang cung), lúc
+ * nhặt mới bốc cung với TRỌNG SỐ theo số slot đang giữ của cung đó: càng cầm
+ * nhiều thì càng dễ ra thêm.
+ * PULL_W[k] = trọng số của một cung mà người chơi đang giữ k slot. */
+const PULL_W = [1, 10, 35, 90, 200, 200];
+const OFFER_N = 3;        // một lần chỉ bày tối đa 3 slot, và luôn CÙNG một cung
+const BL_MAXLV = 4;       // chọn trùng đúng slot đang giữ cùng cung -> nâng cấp
+/* Mỗi cấp nâng cấp (cộng dồn cả 5 slot) cho thêm chỉ số. */
+const BL_UP = { dmg: 0.04, dr: 0.03, hp: 6, mp: 4 };
+/* Chọn cung NGẪU NHIÊN ở sảnh: không được kén thì bù bằng chỉ số. */
+const RAND_BUFF = { hp: 10, mp: 8, atk: 1, spd: 0.04, crit: 0.02 };
+const RAND_BUFF_TXT = '+10 HP · +8 mana · +1 sát thương · +4% tốc chạy · +2% chí mạng';
+
 const BLESS = {
   ari: {
     atk: 'Đòn đầu vào mỗi mục tiêu mới gây nổ AoE nhỏ',
@@ -102,7 +122,7 @@ const BLESS = {
     atk: 'Mỗi đòn thứ 3 đánh 2 lần',
     e: 'E tung 2 lần, lần 2 sức mạnh 50%',
     r: 'R để lại ảnh phân thân, lặp lại R sau 2 giây',
-    pas: 'Mở rương → hiện 2 lựa chọn để chọn lấy 1',
+    pas: 'Bảng chọn blessing hiện thêm 1 lựa chọn (4 thay vì 3)',
     dash: 'Lướt có 2 lượt tích, hồi chiêu dùng chung'
   },
   can: {
@@ -695,8 +715,10 @@ function makePlayer(ws, nm, cls, slot, bot, sign) {
     lv: 1, xp: 0, xn: 40, spd: c.spd, atk: c.atk, rng: c.rng, rate: c.rate,
     alive: true, deadT: 0, escaped: false,
     xu: 0, token: 0,
-    sign: sg,
+    sign: sg, randSign: false,
     bl: { atk: null, e: null, r: null, pas: sg, dash: null },
+    /* Cấp của từng slot — chọn trùng đúng cung đang giữ thì lên cấp. */
+    blLv: { atk: 1, e: 1, r: 1, pas: 1, dash: 1 },
     /* meta — giữ qua các ván, không reset khi startMatch */
     metaToken: 0, weapon: null, nearNpc: null, atGate: false,
     /* cây kỹ năng */
@@ -746,6 +768,20 @@ function recompute(p) {
   if (B.pas === 'pis') p.mmp = Math.round(p.mmp * 1.5);
   if (B.pas === 'cap') { const s = p.stackCap; p.dmgM *= 1 + s * 0.03; p.drM *= 1 - s * 0.03; p.spdM *= 1 + s * 0.01; }
   if (B.dash === 'gem') p.dashMax = 2; else p.dashMax = 1;
+
+  /* Nâng cấp blessing: mỗi cấp vượt 1 ở bất kỳ slot nào đều cộng chỉ số. */
+  let upl = 0;
+  for (const sl of SLOTS) upl += Math.max(0, (p.blLv && p.blLv[sl] || 1) - 1);
+  if (upl) {
+    p.dmgM *= 1 + upl * BL_UP.dmg;
+    p.drM *= Math.pow(1 - BL_UP.dr, upl);
+    p.mhp += upl * BL_UP.hp; p.mmp += upl * BL_UP.mp;
+  }
+  /* Bù cho người bấm "cung ngẫu nhiên" ở sảnh. */
+  if (p.randSign) {
+    p.mhp += RAND_BUFF.hp; p.mmp += RAND_BUFF.mp; p.atk += RAND_BUFF.atk;
+    p.spdM *= 1 + RAND_BUFF.spd; p.critC += RAND_BUFF.crit;
+  }
 
   /* node cộng vào tốc đánh / tầm / hồi chiêu R */
   p.rate = c.rate * p.rateM;
@@ -968,8 +1004,8 @@ function onEnemyDown(e, src) {
     ROOM.loot.push({ id: UID++, ty: 'coin', v: Math.max(1, Math.round(e.coin / n)), x: e.x + rnd(-16, 16), y: e.y + rnd(-16, 16), t: 30 });
   }
   /* quái lớn 15% rơi blessing; quái mang buff 10-15% rơi đúng blessing đó */
-  if (e.buff && Math.random() < 0.13) dropBless(e.x, e.y, e.buff);
-  else if (e.big && Math.random() < 0.15) dropBless(e.x, e.y, null);
+  if (e.buff && Math.random() < 0.13 * BLESS_RATE) dropBless(e.x, e.y, e.buff);
+  else if (e.big && Math.random() < 0.15 * BLESS_RATE) dropBless(e.x, e.y, null);
   if (e.boss) {
     ROOM.bossDead = true; ROOM.bossUp = false;
     dropBless(e.x - 30, e.y, null); dropBless(e.x + 30, e.y, null);
@@ -987,10 +1023,12 @@ function onEnemyDown(e, src) {
   if (src && src.combo === 'sco') healP(src, src.mhp * 0.15);
 }
 
-function dropBless(x, y, sign) {
+/* bias = cung được ưu ái khi bốc (quái mang buff rơi ra thì nghiêng về buff đó).
+   KHÔNG phải cung đã chốt: nhìn vật phẩm trên sàn không biết nó sẽ ra cung nào. */
+function dropBless(x, y, bias) {
   ROOM.loot.push({
     id: UID++, ty: 'bless', x: clamp(x, 20, MW - 20), y: clamp(y, 20, MH - 20),
-    sign: sign || pick(SIGNS), t: 45
+    bias: SIGNS.includes(bias) ? bias : null, t: 45
   });
 }
 
@@ -1543,7 +1581,7 @@ function updatePlayer(p) {
     if (L.ty === 'token' && d < 46) { p.token += L.v; ROOM.loot.splice(i, 1); ev({ k: 'pick', x: L.x, y: L.y, ty: 'token', s: p.slot }); continue; }
     if (L.ty === 'bless' && d < 34 && !p.pending) {
       ROOM.loot.splice(i, 1);
-      offerBless(p, [L.sign], 'bless');
+      offerBless(p, L.bias, 'bless');
       continue;
     }
   }
@@ -1583,11 +1621,7 @@ function openChest(p, c) {
   const bonusTok = p.bl.pas === 'aqu' ? 1 : 0;
 
   if (roll < 0.45) {
-    /* blessing — Song Tử bị động cho 2 lựa chọn */
-    const n = (p.bl.pas === 'gem') ? 2 : 1;
-    const opts = [];
-    while (opts.length < n) { const s = pick(SIGNS); if (!opts.includes(s)) opts.push(s); }
-    offerBless(p, opts, 'chest');
+    offerBless(p, null, 'chest');
   } else if (roll < 0.72) {
     const v = 1 + Math.floor(Math.random() * 2) + bonusTok;    // map 1: 1-2 token
     p.token += v;
@@ -1610,22 +1644,76 @@ function openChest(p, c) {
   ev({ k: 'chest', x: c.x, y: c.y });
 }
 
-/* Đưa ra bảng chọn blessing: chọn cung + chọn slot */
-function offerBless(p, signs, from) {
-  if (p.bot) {                       // bot chọn bừa ngay
-    const s = pick(signs);
-    const slot = pick(SLOTS);
-    setBless(p, s, slot);
-    return;
+/* Số slot người chơi đang giữ của một cung. */
+function signCount(p, s) { let k = 0; for (const sl of SLOTS) if (p.bl[sl] === s) k++; return k; }
+
+/* Bốc một cung theo trọng số PULL_W — đang cầm nhiều thì ra nhiều. */
+function rollSign(p, bias, exclude) {
+  const list = [], w = [];
+  for (const s of SIGNS) {
+    if (exclude && exclude.includes(s)) continue;
+    let v = PULL_W[Math.min(PULL_W.length - 1, signCount(p, s))];
+    if (s === bias) v *= 3;
+    list.push(s); w.push(v);
   }
-  p.pending = { signs, from };
-  send(p.ws, JSON.stringify({ t: 'offer', signs, from }));
+  let r = Math.random() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < list.length; i++) { r -= w[i]; if (r <= 0) return list[i]; }
+  return list[list.length - 1];
+}
+
+/* Bày n slot của CÙNG một cung. Ưu tiên slot trống và slot đang giữ đúng cung
+   đó (chọn lại = nâng cấp) — hai đường đều tiến tới đủ bộ; slot đang giữ cung
+   khác vẫn có mặt nhưng nhẹ, vì đè lên là phá bộ đang gom. */
+function rollSlots(p, sign, n) {
+  const list = [], w = [];
+  for (const sl of SLOTS) {
+    const cur = p.bl[sl];
+    let v = 1;
+    if (!cur) v = 5;
+    else if (cur === sign) v = (p.blLv[sl] || 1) < BL_MAXLV ? 4 : 0.5;
+    list.push(sl); w.push(v);
+  }
+  const out = [];
+  while (out.length < n && list.length) {
+    let r = Math.random() * w.reduce((a, b) => a + b, 0), k = list.length - 1;
+    for (let i = 0; i < list.length; i++) { r -= w[i]; if (r <= 0) { k = i; break; } }
+    out.push(list[k]); list.splice(k, 1); w.splice(k, 1);
+  }
+  return out;
+}
+
+/* Bảng chọn blessing: cung đã chốt ở đây, người chơi chỉ chọn SLOT. */
+function offerBless(p, bias, from) {
+  const sign = rollSign(p, bias);
+  /* Song Tử bị động: thêm một lựa chọn nữa. */
+  const n = Math.min(SLOTS.length, OFFER_N + (p.bl.pas === 'gem' ? 1 : 0));
+  const slots = rollSlots(p, sign, n);
+  if (p.bot) { setBless(p, sign, pick(slots)); return; }   // bot chọn bừa ngay
+  p.pending = { sign, slots, from };
+  send(p.ws, JSON.stringify({ t: 'offer', sign, slots, from }));
 }
 
 function setBless(p, sign, slot) {
   if (!SIGNS.includes(sign) || !SLOTS.includes(slot)) return;
   const old = p.bl[slot];
-  p.bl[slot] = sign;
+
+  /* Chọn trùng đúng cung đang giữ ở slot đó = NÂNG CẤP, không phải mất lượt. */
+  if (old === sign) {
+    const lv = p.blLv[slot] || 1;
+    if (lv >= BL_MAXLV) {
+      /* Đã tới trần: quy ra chỉ số thẳng cho khỏi có lựa chọn chết. */
+      p.bonusHp = (p.bonusHp || 0) + 12; p.bonusAtk = (p.bonusAtk || 0) + 1.5;
+      recompute(p);
+      ev({ k: 'toast', s: p.slot, m: SIGN_NM[sign] + ' — ' + SLOT_NM[slot] + ' đã tối đa: +12 HP, +1.5 sát thương' });
+      return;
+    }
+    p.blLv[slot] = lv + 1;
+    recompute(p);
+    ev({ k: 'toast', s: p.slot, m: '▲ ' + SIGN_NM[sign] + ' — ' + SLOT_NM[slot] + ' lên cấp ' + (lv + 1) + '/' + BL_MAXLV });
+    return;
+  }
+
+  p.bl[slot] = sign; p.blLv[slot] = 1;
   recompute(p);
   const cb = p.combo;
   /* riêng tư — không announce cho cả map biết ai có blessing gì */
@@ -1677,9 +1765,9 @@ function buy(p, id, slot) {
   else if (id === 'reroll') {
     const has = SLOTS.filter(s => p.bl[s]);
     const tgt = SLOTS.includes(slot) && p.bl[slot] ? slot : (has.length ? pick(has) : null);
-    if (tgt) { let s; do { s = pick(SIGNS); } while (s === p.bl[tgt]); setBless(p, s, tgt); }
+    if (tgt) setBless(p, rollSign(p, null, [p.bl[tgt]]), tgt);
   }
-  else if (id === 'bless') offerBless(p, [pick(SIGNS)], 'shop');
+  else if (id === 'bless') offerBless(p, null, 'shop');
   ev({ k: 'toast', s: p.slot, m: 'Đã mua: ' + it.nm });
 }
 
@@ -1930,9 +2018,17 @@ function stepPlaying() {
 
   /* blessing rơi ngẫu nhiên toàn map */
   R.blessT += DT;
-  if (R.blessT >= 25) {
+  if (R.blessT >= 25 / BLESS_RATE) {
     R.blessT = 0;
-    if (R.loot.filter(l => l.ty === 'bless').length < 4) {
+    /* BLESS_RATE > 1 = đang test: rơi ngay cạnh một người còn sống, để luồng
+       nhặt-chọn-nâng cấp không phụ thuộc vào việc client test có tự đi tới
+       được chỗ rơi hay không (client test không có tìm đường như bot). */
+    if (BLESS_RATE > 1) {
+      /* Thả cho TỪNG người và bỏ trần 4 món: chỉ thả cho một người thì món
+         nằm dưới chân người đang AFK sẽ đọng lại, đủ 4 món là tắt hẳn nguồn
+         thả — client đang test đứng chờ mãi không có gì. */
+      for (const q of R.players) if (q.alive && !q.bot) dropBless(q.x, q.y, null);
+    } else if (R.loot.filter(l => l.ty === 'bless').length < 4) {
       /* sàn chỉ chiếm ~45% bản đồ nên phải thử nhiều lần; hết lượt thì rơi
          vào một ô rương cho chắc chắn là chỗ đi tới được */
       let x = 0, y = 0, tr = 0, ok = false;
@@ -2077,6 +2173,7 @@ function startMatch() {
     p.xu = 0; p.token = 0; p.lv = 1; p.xp = 0; p.xn = 40;
     p.bonusHp = 0; p.bonusAtk = 0;
     p.bl = { atk: null, e: null, r: null, pas: p.sign || null, dash: null };
+    p.blLv = { atk: 1, e: 1, r: 1, pas: 1, dash: 1 };
     p.pts = 0; p.nodes = [p.cls + '_root']; p.usedLast = false;
     p.frenzy = 0; p.volley = null; p.lastStandBuff = 0; p.shotN = 0;
     p.stackCap = 0; p.stackAtkCap = 0; p.aliveT = 0; p.reviveLeft = 1;
@@ -2100,7 +2197,8 @@ function snapshot(forSlot) {
     sh: Math.round(p.shield), lv: p.lv, al: p.alive ? 1 : 0, es: p.escaped ? 1 : 0,
     dt: Math.max(0, Math.round(p.deadT * 10) / 10),
     ps: p.poisonT > 0 ? 1 : 0, tau: p.stackTau, cb: p.combo || 0,
-    bl: (p === me || seeAll) ? p.bl : undefined
+    bl: (p === me || seeAll) ? p.bl : undefined,
+    blv: (p === me || seeAll) ? p.blLv : undefined
   }));
 
   /* Ở sảnh không có gì để bắn cả — gửi mảng rỗng cho nhẹ và để client
@@ -2117,7 +2215,8 @@ function snapshot(forSlot) {
     tm: Math.max(0, Math.round(((R.ph === 'playing' ? MATCH_TIME : EXODUS_TIME) - R.t) * 10) / 10),
     P, E,
     R: inLobby ? [] : R.projs.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), ty: p.ty, a: Math.round(Math.atan2(p.vy, p.vx) * 100) / 100, o: p.own })),
-    L: inLobby ? [] : R.loot.map(l => ({ i: l.id, x: Math.round(l.x), y: Math.round(l.y), ty: l.ty, sg: l.sign || 0, v: l.v || 0 })),
+    /* blessing trên sàn là vật phẩm chung — KHÔNG gửi cung, nhìn không ra được. */
+    L: inLobby ? [] : R.loot.map(l => ({ i: l.id, x: Math.round(l.x), y: Math.round(l.y), ty: l.ty, v: l.v || 0 })),
     C: inLobby ? [] : R.chests.map(c => ({ i: c.id, x: c.x, y: c.y, o: c.open ? 1 : 0 })),
     M: (inLobby || R.merchantOpen < 0) ? [] : [{ x: MERCHANTS[R.merchantOpen].x, y: MERCHANTS[R.merchantOpen].y, o: 1 }],
     G: inLobby ? [] : R.gates.map(g => ({ x: g.x, y: g.y, r: g.r })),
@@ -2142,9 +2241,9 @@ function snapshot(forSlot) {
       cdE: Math.round(me.cdE * 10) / 10, mxE: me.mxE,
       cdR: Math.round(me.cdR * 10) / 10, mxR: me.mxR,
       dc: me.dashChg, dm: me.dashMax, dcd: Math.round(me.dashCd * 10) / 10,
-      bl: me.bl, combo: me.combo, prog: Math.round(me.openProg / 1.2 * 100),
+      bl: me.bl, blv: me.blLv, combo: me.combo, prog: Math.round(me.openProg / 1.2 * 100),
       nd: me.nodes, pts: me.pts, br: me.br,
-      sign: me.sign, cls: me.cls, weapon: me.weapon, mtoken: me.metaToken,
+      sign: me.sign, rs: me.randSign ? 1 : 0, cls: me.cls, weapon: me.weapon, mtoken: me.metaToken,
       npc: me.nearNpc, gate: me.atGate ? 1 : 0,
       nc: me.nearChest, nm2: me.nearMerchant, ready: me.ready ? 1 : 0,
       stock: R.stock,
@@ -2197,7 +2296,7 @@ server.on('upgrade', (req, sock) => {
   sock.on('error', () => onClose(ws));
   send(ws, JSON.stringify({
     t: 'welcome', maxp: MAXP,
-    cfg: { MW, MH, MATCH_TIME, EXODUS_TIME, SIGNS, SIGN_NM, SIGN_THEME, SLOTS, SLOT_NM, BLESS, COMBO_NM, SHOP, CLASSES, MINLV, META, LOBBY, WEAPONS },
+    cfg: { MW, MH, MATCH_TIME, EXODUS_TIME, SIGNS, SIGN_NM, SIGN_THEME, SLOTS, SLOT_NM, BLESS, COMBO_NM, SHOP, CLASSES, MINLV, META, LOBBY, WEAPONS, BL_MAXLV, BL_UP, RAND_BUFF_TXT },
     map: mapPacket()
   }));
 });
@@ -2306,11 +2405,16 @@ function handleMsg(ws, m) {
       if (WEAPON_BY_ID[p.weapon] && WEAPON_BY_ID[p.weapon].cls !== p.cls) p.weapon = null;
       recompute(p); p.hp = p.mhp; p.mp = p.mmp;
       break;
-    case 'setsign':
-      if (ROOM.ph !== 'lobby' || !SIGNS.includes(m.v)) break;
-      p.sign = m.v; p.bl.pas = m.v;
-      recompute(p);
+    case 'setsign': {
+      if (ROOM.ph !== 'lobby') break;
+      /* '?' = để game bốc. Không được kén nên bù chỉ số RAND_BUFF. */
+      if (m.v === '?') { p.sign = pick(SIGNS); p.randSign = true; }
+      else if (SIGNS.includes(m.v)) { p.sign = m.v; p.randSign = false; }
+      else break;
+      p.bl.pas = p.sign; p.blLv.pas = 1;
+      recompute(p); p.hp = p.mhp; p.mp = p.mmp;
       break;
+    }
     case 'buyw': {
       if (ROOM.ph !== 'lobby') break;
       const w = WEAPON_BY_ID[m.id];
@@ -2335,8 +2439,10 @@ function handleMsg(ws, m) {
       break;
     }
     case 'pick':
+      /* Cung do server chốt lúc mở bảng — client chỉ được chọn trong đúng
+         danh sách slot đã bày, không tự bịa slot khác. */
       if (!p.pending) return;
-      if (p.pending.signs.includes(m.sign)) setBless(p, m.sign, m.slot);
+      if (p.pending.slots.includes(m.slot)) setBless(p, p.pending.sign, m.slot);
       p.pending = null;
       break;
     case 'skip': p.pending = null; break;

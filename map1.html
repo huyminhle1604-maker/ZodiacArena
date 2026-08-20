@@ -112,6 +112,31 @@
   .sl .k{font-family:var(--font-pixel);font-size:8.5px;letter-spacing:.16em;color:var(--ink-3)}
   .sl .v{font-family:var(--font-body);font-weight:600;font-size:12px;color:var(--ink)}
   .sl.off .v{color:#5A4C68}
+  /* Cấp nâng cấp dán góc ô glyph — chỗ duy nhất còn trống mà không đẩy layout. */
+  .sl .g{position:relative}
+  .sl .g u{position:absolute;right:-3px;bottom:-4px;font-family:var(--font-pixel);font-size:8px;
+    text-decoration:none;background:var(--gold);color:#1A1208;padding:1px 2px 0;line-height:1}
+  /* Hộp thông tin khi trỏ vào huy hiệu blessing. Dải HUD chỉ đủ chỗ cho tên
+     cung, mà hiệu ứng thì mỗi slot một câu — không trỏ xem được thì người chơi
+     phải nhớ 60 dòng mô tả. KHÔNG cho .sl ăn chuột (dải nằm sát mép trái, bật
+     pointer-events là bấm ở đó không bắn được nữa); dò trúng bằng toạ độ trong
+     handler mousemove của canvas. */
+  #bltip{position:fixed;width:268px;background:var(--bg);border:2px solid var(--rose);
+    padding:11px 13px;pointer-events:none;z-index:41;display:none}
+  #bltip .th{display:flex;align-items:center;gap:9px}
+  #bltip .th b{font-size:22px;font-weight:400;line-height:1;color:var(--rose)}
+  #bltip .th u{text-decoration:none;font-family:var(--font-body);font-weight:600;
+    font-size:13.5px;color:var(--ink)}
+  #bltip .k{font-family:var(--font-pixel);font-size:9px;letter-spacing:.14em;
+    color:var(--ink-3);margin-top:5px}
+  #bltip .d{font-size:12.5px;color:var(--ink-2);line-height:1.5;margin-top:6px}
+  #bltip .lv{display:flex;gap:3px;margin-top:8px}
+  #bltip .lv i{flex:1;height:6px;background:var(--slot);box-shadow:inset 1px 1px 0 #2A1F36}
+  #bltip .lv i.on{background:var(--gold);box-shadow:none}
+  #bltip .ft{margin-top:9px;padding-top:8px;border-top:2px solid var(--line);
+    font-size:11.5px;color:var(--ink-3);line-height:1.55}
+  #bltip .ft b{color:var(--gold);font-weight:600}
+  #bltip .ft s{text-decoration:none;color:var(--rose)}
   #comboTag{display:flex;align-items:center;gap:7px;background:#241E12;border:2px solid var(--gold);
     padding:5px 9px 4px;font-family:var(--font-pixel);font-size:9px;letter-spacing:.12em;color:var(--gold)}
 
@@ -225,6 +250,7 @@
   .pasbox{background:var(--slot);border:2px solid var(--sl-pas);padding:11px 13px;font-size:13px;
     line-height:1.5;color:var(--ink-2)}
   .pasbox b{display:block;font-family:var(--font-body);font-weight:600;font-size:12px;color:var(--ink);margin-bottom:4px}
+  .pasbox i{display:block}
 
   /* 3 thẻ cung (blessing) */
   .cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
@@ -249,6 +275,18 @@
      Bản mock để 10px là tự mâu thuẫn — chọn theo checklist cho đọc được. */
   .slrow .cur{font-family:var(--font-body);font-weight:600;font-size:11.5px;color:var(--ink-3);white-space:nowrap}
   .slrow .cur.free{color:var(--accent)}
+  /* Hàng NÂNG CẤP: cùng cung, cùng slot — viền vàng để phân biệt với hàng đè lên. */
+  .slrow.up{border-color:var(--gold)}
+  .slrow.up .cur{color:var(--gold)}
+  .slrow.swap .cur{color:var(--danger)}
+  /* Dải tên cung đã bốc — cung do server chốt, người chơi chỉ chọn slot. */
+  .signhd{display:flex;align-items:center;gap:12px;background:var(--slot);
+    border:2px solid var(--rose);padding:11px 14px}
+  .signhd .g{font-size:30px;line-height:1;color:var(--rose)}
+  .signhd .n{font-family:var(--font-body);font-weight:600;font-size:16px;color:var(--ink)}
+  .signhd .th{font-family:var(--font-pixel);font-size:9px;letter-spacing:.14em;color:var(--ink-3)}
+  .signhd .ct{margin-left:auto;font-family:var(--font-pixel);font-size:9px;
+    letter-spacing:.12em;color:var(--gold);text-align:right;line-height:1.7}
 
   /* món hàng merchant */
   .item{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;
@@ -440,6 +478,7 @@
   background:rgba(12,10,16,.92);border:1px solid var(--gold);padding:8px 16px;text-align:center;
   font-size:12px;color:var(--ink);letter-spacing:.5px;pointer-events:none"></div>
 
+<div id="bltip"></div>
 <div id="offer" class="modal hide"></div>
 <div id="shop" class="modal hide"></div>
 <div id="over" class="modal hide"></div>
@@ -611,7 +650,7 @@ function onMsg(m){
     return;
   }
   if(m.t==='reset'){ location.reload(); return; }
-  if(m.t==='offer'){ showOffer(m.signs); return; }
+  if(m.t==='offer'){ showOffer(m.sign,m.slots); return; }
   if(m.t==='state'){
     prev=cur; prevT=curT; cur=m; curT=performance.now();
     if(m.ev) m.ev.forEach(handleEv);
@@ -700,7 +739,8 @@ addEventListener('keydown',function(e){
   if(e.key==='Escape'&&npcOpen) closeNpc();
 });
 addEventListener('keyup',function(e){ keys[e.key.toLowerCase()]=0; if(e.key==='Shift') keys['shift']=0; });
-cv.addEventListener('mousemove',function(e){ mouse.x=e.clientX; mouse.y=e.clientY; });
+cv.addEventListener('mousemove',function(e){ mouse.x=e.clientX; mouse.y=e.clientY; blTip(e.clientX,e.clientY); });
+cv.addEventListener('mouseleave',function(){ blTip(-1,-1); });
 cv.addEventListener('mousedown',function(e){ if(e.button===0&&!inLobby()) firing=true; });
 addEventListener('mouseup',function(e){ if(e.button===0) firing=false; });
 addEventListener('blur',function(){ keys={}; firing=false; });
@@ -718,10 +758,13 @@ setInterval(function(){
 
 function meP(){ if(!cur) return null; for(var i=0;i<cur.P.length;i++) if(cur.P[i].s===MY) return cur.P[i]; return null; }
 
-/* ================= blessing modal ================= */
-var offerSigns=[], offerPick=null;
-function showOffer(signs){
-  offerSigns=signs; offerPick=signs.length===1?signs[0]:null;
+/* ================= blessing modal =================
+   Blessing rơi ra là vật phẩm CHUNG. Cung do server bốc (nghiêng về cung đang
+   gom), client chỉ bày các SLOT của đúng cung đó — tối đa 3, hoặc 4 nếu đang
+   giữ bị động Song Tử. */
+var offerSign=null, offerSlots=[];
+function showOffer(sign,slots){
+  offerSign=sign; offerSlots=slots||[];
   renderOffer();
   document.getElementById('offer').classList.remove('hide');
 }
@@ -741,45 +784,45 @@ function boxHtml(tone,title,sub,body){
 }
 
 function renderOffer(){
-  var me=cur&&cur.me?cur.me:{bl:{}};
-  var multi=offerSigns.length>1;
-  var b='';
-  if(multi){
-    b+='<div class="cards3">';
-    offerSigns.forEach(function(s){
-      b+='<div class="card3'+(offerPick===s?' on':'')+'" data-s="'+s+'">'+
-         '<span class="g">'+SIGN_GLYPH[s]+'</span>'+
-         '<span class="n">'+CFG.SIGN_NM[s]+'</span>'+
-         '<span class="th">'+px(CFG.SIGN_THEME[s])+'</span></div>';
-    });
-    b+='</div>';
-  }
-  if(offerPick){
-    var s=offerPick;
-    b+='<div style="display:flex;flex-direction:column;gap:8px">';
-    CFG.SLOTS.forEach(function(sl){
-      var curSign=me.bl?me.bl[sl]:null;
-      var col=curSign?'var('+SLOT_CSSVAR[sl]+')':'';
-      b+='<div class="slrow" data-sl="'+sl+'">'+
-         '<div class="g"'+(col?' style="border-color:'+col+';color:'+col+'"':'')+'>'+
-           (curSign?SIGN_GLYPH[curSign]:'·')+'</div>'+
-         '<span><span class="k">'+SLOT_PX[sl]+'</span>'+
-           '<div class="e">'+CFG.BLESS[s][sl]+'</div></span>'+
-         '<span class="cur'+(curSign?'':' free')+'">'+
-           (curSign?'thay '+CFG.SIGN_NM[curSign]:'trống')+'</span></div>';
-    });
-    b+='</div>';
-  }
+  if(!offerSign) return;
+  var me=cur&&cur.me?cur.me:{bl:{},blv:{}};
+  var bl=me.bl||{}, blv=me.blv||{}, s=offerSign, mx=CFG.BL_MAXLV||4;
+  /* Đang gom được mấy slot của cung này — cho thấy ngay còn thiếu bao nhiêu. */
+  var have=0; CFG.SLOTS.forEach(function(sl){ if(bl[sl]===s) have++; });
+
+  var b='<div class="signhd"><span class="g">'+SIGN_GLYPH[s]+'</span>'+
+        '<span><span class="n">'+CFG.SIGN_NM[s]+'</span><br>'+
+        '<span class="th">'+px(CFG.SIGN_THEME[s])+'</span></span>'+
+        '<span class="ct">DANG GIU '+have+'/'+CFG.SLOTS.length+
+        (have>=CFG.SLOTS.length?'<br>DU BO HOP CUNG':'')+'</span></div>';
+
+  b+='<div style="display:flex;flex-direction:column;gap:8px">';
+  offerSlots.forEach(function(sl){
+    var curSign=bl[sl], same=curSign===s, lv=blv[sl]||1;
+    var col=curSign?'var('+SLOT_CSSVAR[sl]+')':'';
+    var st, cls='slrow';
+    if(same){ cls+=' up'; st = lv>=mx ? 'tối đa → +12 HP, +1.5 dmg' : '▲ nâng cấp '+lv+' → '+(lv+1); }
+    else if(curSign){ cls+=' swap'; st='thay '+CFG.SIGN_NM[curSign]; }
+    else st='trống';
+    b+='<div class="'+cls+'" data-sl="'+sl+'">'+
+       '<div class="g"'+(col?' style="border-color:'+col+';color:'+col+'"':'')+'>'+
+         (curSign?SIGN_GLYPH[curSign]:'·')+'</div>'+
+       '<span><span class="k">'+SLOT_PX[sl]+'</span>'+
+         '<div class="e">'+CFG.BLESS[s][sl]+'</div></span>'+
+       '<span class="cur'+(curSign?'':' free')+'">'+st+'</span></div>';
+  });
+  b+='</div>';
   b+='<div class="mrow"><button class="btn sec" id="skipB">BO QUA</button></div>';
 
   var box=document.getElementById('offer');
-  box.innerHTML=boxHtml('rose','BLESSING HOANG DAO',multi?'CHON CUNG → CHON SLOT':'CHON SLOT',b);
-  box.querySelectorAll('.card3').forEach(function(c){ c.onclick=function(){ offerPick=c.dataset.s; renderOffer(); }; });
+  box.innerHTML=boxHtml('rose','BLESSING · '+px(CFG.SIGN_NM[s]),'CHON SLOT',b);
   box.querySelectorAll('.slrow').forEach(function(r){ r.onclick=function(){
-    sendMsg({t:'pick',sign:offerPick,slot:r.dataset.sl});
-    box.classList.add('hide');
+    sendMsg({t:'pick',slot:r.dataset.sl});
+    offerSign=null; box.classList.add('hide');
   }; });
-  box.querySelector('#skipB').onclick=function(){ sendMsg({t:'skip'}); box.classList.add('hide'); };
+  box.querySelector('#skipB').onclick=function(){
+    sendMsg({t:'skip'}); offerSign=null; box.classList.add('hide');
+  };
 }
 
 /* ================= merchant ================= */
@@ -849,7 +892,8 @@ function closeNpc(){ npcOpen=null; document.getElementById('npc').classList.add(
 function renderNpc(){
   if(!npcOpen||!cur||!cur.me||!CFG.LOBBY) return;
   var M=cur.me;
-  var sig=npcOpen+'|'+M.cls+'|'+M.sign+'|'+M.weapon+'|'+M.mtoken;
+  var LBs=cur.lb?[cur.lb.n,cur.lb.r,cur.lb.cd,(cur.lb.w||[]).join('~')].join(','):'';
+  var sig=npcOpen+'|'+M.cls+'|'+M.sign+'|'+M.rs+'|'+M.weapon+'|'+M.mtoken+'|'+M.ready+'|'+LBs;
   if(sig===npcSig) return;
   npcSig=sig;
 
@@ -883,31 +927,44 @@ function renderNpc(){
   }
 
   if(npcOpen==='gate'){
-    var ready=!!M.sign;
+    var hasSign=!!M.sign, iamReady=!!M.ready;
     var b3='<p>Cung bạn chọn vào thẳng slot <b style="color:var(--ink)">Bị Động</b> — vào map là đã có sẵn một blessing.</p>';
     b3+='<div class="siggrid">';
     CFG.SIGNS.forEach(function(sg){
-      b3+='<div class="sigc'+(M.sign===sg?' on':'')+'" data-sign="'+sg+'">'+
+      b3+='<div class="sigc'+(!M.rs&&M.sign===sg?' on':'')+'" data-sign="'+sg+'">'+
           '<b>'+SIGN_GLYPH[sg]+'</b><span>'+CFG.SIGN_NM[sg]+'</span></div>';
     });
+    /* Ô thứ 13: để game bốc. Đổi lại được buff chỉ số nhẹ — trả cho việc
+       không kén được bị động lẫn hướng gom blessing về sau. */
+    b3+='<div class="sigc'+(M.rs?' on':'')+'" data-sign="?" style="grid-column:span 4">'+
+        '<b>?</b><span>NGẪU NHIÊN — buff nhẹ: '+(CFG.RAND_BUFF_TXT||'')+'</span></div>';
     b3+='</div>';
-    if(ready) b3+='<div class="pasbox"><b>'+SIGN_GLYPH[M.sign]+' '+CFG.SIGN_NM[M.sign]+' · '+CFG.SIGN_THEME[M.sign]+'</b>'+
-                  '<i style="font-style:normal">Bị động: '+CFG.BLESS[M.sign].pas+'</i></div>';
-    else b3+='<div class="pasbox">Chọn một cung để xem hiệu ứng bị động — chưa chọn thì chưa đi được.</div>';
+    if(hasSign) b3+='<div class="pasbox"><b>'+SIGN_GLYPH[M.sign]+' '+CFG.SIGN_NM[M.sign]+' · '+CFG.SIGN_THEME[M.sign]+
+                  (M.rs?' · NGẪU NHIÊN':'')+'</b>'+
+                  '<i style="font-style:normal">Bị động: '+CFG.BLESS[M.sign].pas+'</i>'+
+                  (M.rs?'<i style="font-style:normal;color:var(--gold)">Thưởng ngẫu nhiên: '+(CFG.RAND_BUFF_TXT||'')+'</i>':'')+'</div>';
+    else b3+='<div class="pasbox">Chọn một cung — hoặc bấm NGẪU NHIÊN — để xem hiệu ứng bị động. Chưa chọn thì chưa đi được.</div>';
     /* Ai đã bấm, ai chưa, còn bao lâu — người chơi cần thấy ngay tại đây,
        chứ không phải đoán vì sao bấm rồi mà chưa đi. */
     var LB=cur.lb;
-    if(LB&&(LB.n>1||M.ready)){
-      var st='<b>'+LB.r+'/'+LB.n+' người đã sẵn sàng</b>';
-      if(LB.cd>=0) st+=' · vào map sau <b style="color:var(--gold)">'+LB.cd+'s</b>';
-      if(LB.w&&LB.w.length) st+='<br>Đang chờ: '+LB.w.map(esc).join(', ');
+    if(iamReady||(LB&&LB.n>1)){
+      var st=iamReady?'<b style="color:var(--gold)">Bạn đã sẵn sàng — đóng bảng này vẫn giữ nguyên, đi lại trong làng được bình thường.</b>':'';
+      if(LB) st+='<b>'+LB.r+'/'+LB.n+' người đã sẵn sàng</b>'+
+                 (LB.cd>=0?' · vào map sau <b style="color:var(--gold)">'+LB.cd+'s</b>':'')+
+                 (LB.w&&LB.w.length?'<br>Đang chờ: '+LB.w.map(esc).join(', '):'');
       b3+='<div class="pasbox">'+st+'</div>';
     }
+    /* Nút đóng có mặt ở MỌI trạng thái. Trước đây chọn cung rồi là nút QUAY LAI
+       biến mất, chỉ còn VAO MAP 1 — bấm xong phải chờ người khác mà không có
+       cách nào rời bảng ngoài phím F/Esc không ai chỉ. */
     b3+='<div class="mfoot"><span class="fn">Tới được cổng thì giữ token, không kịp thì mất trắng.</span>'+
-        (ready?'<button class="btn" id="enterBtn">VAO MAP 1</button>'
-              :'<button class="btn sec" id="closeNpc">QUAY LAI</button>')+'</div>';
+        '<span style="display:flex;gap:8px">'+
+        '<button class="btn sec" id="closeNpc">DONG [F / ESC]</button>'+
+        (iamReady?'<button class="btn sec" id="unreadyBtn">HUY SAN SANG</button>'
+                 :(hasSign?'<button class="btn" id="enterBtn">VAO MAP 1</button>':''))+
+        '</span></div>';
     html=boxHtml('','CONG DICH CHUYEN',
-      px(CFG.CLASSES[M.cls].nm)+' · ✦ '+M.mtoken+' TOKEN',b3);
+      px(CFG.CLASSES[M.cls].nm)+' · ✦ '+M.mtoken+' TOKEN'+(iamReady?' · SAN SANG':''),b3);
   }
 
   var box=document.getElementById('npc');
@@ -917,7 +974,11 @@ function renderNpc(){
   box.querySelectorAll('[data-w]').forEach(function(x){ x.onclick=function(){ if(!x.disabled) sendMsg({t:'buyw',id:x.dataset.w}); }; });
   var cn=box.querySelector('#closeNpc'); if(cn) cn.onclick=closeNpc;
   var en=box.querySelector('#enterBtn');
+  /* Bấm là đánh dấu sẵn sàng RỒI ĐÓNG BẢNG: state ready nằm ở server nên đóng
+     bảng không mất, mà người chơi lấy lại được quyền điều khiển trong lúc chờ. */
   if(en) en.onclick=function(){ sendMsg({t:'enter'}); closeNpc(); };
+  var un=box.querySelector('#unreadyBtn');
+  if(un) un.onclick=function(){ sendMsg({t:'ready',v:false}); };
 }
 
 /* ================= cây kỹ năng ================= */
@@ -1120,6 +1181,69 @@ function setBar(el,seg,fill,extra,exCls){
 }
 function segCount(max){ return Math.max(10,Math.min(30,Math.round(max/8))); }
 
+/* ================= hộp thông tin blessing (trỏ vào huy hiệu) =================
+   Dò bằng TOẠ ĐỘ trong handler mousemove của canvas, không dùng :hover — dải
+   huy hiệu nằm sát mép trái, cho nó ăn chuột là bấm ở đó không bắn được nữa. */
+var blTipSig='';
+function blTip(mx,my){
+  var t=document.getElementById('bltip');
+  var off=function(){ if(blTipSig){ blTipSig=''; t.style.display='none'; } };
+  if(!joined||!cur||!cur.me||mx<0||inLobby()) return off();
+  /* Modal mở ra thì chuột không tới canvas nữa, hộp sẽ treo lại — dọn luôn. */
+  if(document.querySelector('.modal:not(.hide)')) return off();
+
+  var kids=document.getElementById('slotHud').children, hit=-1, r=null;
+  for(var i=0;i<kids.length;i++){
+    var q=kids[i].getBoundingClientRect();
+    if(mx>=q.left-4&&mx<=q.right+6&&my>=q.top-3&&my<=q.bottom+3){ hit=i; r=q; break; }
+  }
+  if(hit<0) return off();
+
+  var M=cur.me, sl=CFG.SLOTS[hit];
+  /* Chỉ dựng lại khi dữ liệu đổi — mousemove bắn liên tục, vẽ mỗi lần thì
+     offsetHeight đo lại mỗi frame và hộp nhấp nháy. */
+  var sig=sl+'|'+M.bl[sl]+'|'+((M.blv&&M.blv[sl])||1)+'|'+CFG.SLOTS.map(function(k){return M.bl[k]}).join(',');
+  if(sig!==blTipSig){ blTipSig=sig; t.innerHTML=blTipHtml(sl,M); t.style.display='block'; }
+
+  /* Bên phải huy hiệu; hết chỗ thì lật sang trái. */
+  var W=268, H=t.offsetHeight;
+  var x=r.right+12; if(x+W>innerWidth-8) x=Math.max(8,r.left-12-W);
+  t.style.left=x+'px';
+  t.style.top=Math.max(8,Math.min(innerHeight-H-8,r.top-8))+'px';
+}
+
+function blTipHtml(sl,M){
+  var sg=M.bl[sl], lv=(M.blv&&M.blv[sl])||1, mx=CFG.BL_MAXLV||4;
+  var col='var('+SLOT_CSSVAR[sl]+')';
+  var h='<div class="th"><b style="color:'+(sg?col:'var(--ink-3)')+'">'+(sg?SIGN_GLYPH[sg]:'·')+'</b>'+
+        '<u>'+(sg?CFG.SIGN_NM[sg]+' · '+CFG.SIGN_THEME[sg]:'Chưa có blessing')+'</u></div>'+
+        '<div class="k">'+SLOT_PX[sl]+(sg?' · CAP '+lv+'/'+mx:'')+'</div>';
+  if(!sg) return h+'<div class="d">Slot <b>'+CFG.SLOT_NM[sl]+
+    '</b> còn trống. Nhặt blessing thì bảng chọn ưu tiên bày slot này.</div>';
+
+  h+='<div class="d">'+CFG.BLESS[sg][sl]+'</div>';
+  var pips=''; for(var i=1;i<=mx;i++) pips+='<i class="'+(i<=lv?'on':'')+'"></i>';
+  h+='<div class="lv">'+pips+'</div>';
+
+  /* Số của cơ chế nâng cấp lấy từ CFG chứ không chép lại ở client — chép thì
+     cân bằng lại một lần là bảng này nói sai ngay. */
+  var U=CFG.BL_UP||{}, tot=0;
+  CFG.SLOTS.forEach(function(k){ tot+=Math.max(0,((M.blv&&M.blv[k])||1)-1); });
+  h+='<div class="ft">'+
+     (lv<mx ? 'Chọn lại '+CFG.SIGN_NM[sg]+' ở slot này thì lên <b>cấp '+(lv+1)+'</b>.'
+            : 'Đã <b>tối đa</b> — chọn lại thì đổi thành +12 HP, +1.5 sát thương.')+
+     '<br>Mỗi cấp: +'+Math.round((U.dmg||0)*100)+'% sát thương · −'+Math.round((U.dr||0)*100)+
+     '% sát thương nhận · +'+(U.hp||0)+' HP · +'+(U.mp||0)+' mana'+
+     (tot ? '<br>Đang có <b>'+tot+' cấp</b> nâng cấp trên cả 5 slot.' : '');
+
+  var have=0, miss=[];
+  CFG.SLOTS.forEach(function(k){ if(M.bl[k]===sg) have++; else miss.push(CFG.SLOT_NM[k]); });
+  h+='<br>'+(miss.length
+    ? 'Bộ '+CFG.SIGN_NM[sg]+': <b>'+have+'/'+CFG.SLOTS.length+'</b> · thiếu <s>'+miss.join(', ')+'</s>'
+    : '<b>✦ BỘ HỢP CUNG: '+CFG.COMBO_NM[sg]+'</b>');
+  return h+'</div>';
+}
+
 function buildSlotHud(){
   var h='';
   CFG.SLOTS.forEach(function(s){
@@ -1149,11 +1273,13 @@ function syncHud(){
     closeShop(); closeTree();
   }
   document.getElementById('hud').classList.toggle('inlobby',lob);
+  if(blTipSig) blTip(mouse.x,mouse.y);
 
   var lw=document.getElementById('lobwait'), LBH=lob?cur.lb:null;
   if(LBH&&LBH.r>0){
     lw.classList.remove('hide');
-    var t2='<b>'+LBH.r+'/'+LBH.n+' SAN SANG</b>';
+    var t2=(M.ready?'<b style="color:var(--gold)">BAN DA SAN SANG</b> · ':'')+
+           '<b>'+LBH.r+'/'+LBH.n+' SAN SANG</b>';
     if(LBH.cd>=0) t2+=' <span style="color:var(--gold)">· vào map sau '+LBH.cd+'s</span>';
     if(LBH.w&&LBH.w.length) t2+='<br><span style="opacity:.75">Đang chờ: '+LBH.w.map(esc).join(', ')+'</span>';
     lw.innerHTML=t2;
@@ -1234,8 +1360,8 @@ function syncHud(){
   CFG.SLOTS.forEach(function(s,i){
     var el=hud.children[i], sg=M.bl[s], col='var('+SLOT_CSSVAR[s]+')';
     el.classList.toggle('off',!sg);
-    var g=el.querySelector('.g');
-    g.textContent=sg?SIGN_GLYPH[sg]:'·';
+    var g=el.querySelector('.g'), lv=(M.blv&&M.blv[s])||1;
+    g.innerHTML=(sg?SIGN_GLYPH[sg]:'·')+(sg&&lv>1?'<u>'+lv+'</u>':'');
     g.style.color=sg?col:'';
     g.style.borderColor=sg?col:'';
     el.querySelector('.v').textContent=sg?CFG.SIGN_NM[sg]:'Trống';
@@ -1916,10 +2042,12 @@ function drawLoot(){
       ctx.fillStyle='#B98BE8'; ctx.font='11px serif'; ctx.textAlign='center';
       ctx.fillText('✦',l.x,l.y+bob+4);
     } else {
+      /* Vật phẩm CHUNG: cung chỉ được bốc lúc nhặt, nên không có glyph cung ở
+         đây nữa — thấy trước là mất hẳn cái quyết định lúc mở bảng. */
       ctx.globalAlpha=.25; ctx.fillStyle='#E08FB4';
       ctx.beginPath(); ctx.arc(l.x,l.y+bob,18,0,7); ctx.fill(); ctx.globalAlpha=1;
-      ctx.fillStyle='#F0E9F4'; ctx.font='12px serif'; ctx.textAlign='center';
-      ctx.fillText(SIGN_GLYPH[l.sg]||'✦',l.x,l.y+bob+4);
+      ctx.fillStyle='#F0E9F4'; ctx.font='13px serif'; ctx.textAlign='center';
+      ctx.fillText('❖',l.x,l.y+bob+5);
     }
   });
 }
