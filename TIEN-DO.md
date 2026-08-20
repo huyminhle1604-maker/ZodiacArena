@@ -1,6 +1,6 @@
 # Tiến độ — Zodiac Arena
 
-Cập nhật: **04/08/2026**
+Cập nhật: **20/08/2026**
 
 ## Trạng thái: chạy được, đã test, chưa chơi tay người
 
@@ -180,6 +180,85 @@ Ba thay đổi để rủ bạn bè chơi chung mà không vướng nhau:
   — thay phòng là xoá sạch người đang chơi khỏi `ROOM.players`, cả bọn đứng hình. Giờ chỉ dựng phòng
   mới khi KHÔNG còn người thật nào; còn lại server trả `{t:'wait', tm}`, client hiện màn hình chờ và
   tự gõ cửa 4 giây một lần cho tới khi ván xong về sảnh.
+
+### Blessing: rơi ra một món CHUNG, bốc cung theo kiểu Hades (20/08/2026)
+Ba việc trong cùng một mạch, vì cả ba đều đụng vào đúng một đoạn: nhặt → bốc cung → chọn slot.
+
+**1. Blessing trên sàn không mang cung nữa.** Trước đây `dropBless()` chốt luôn cung rồi client vẽ
+ký hiệu cung đó, nên nhìn từ xa là biết đáng nhặt hay không — mất hẳn cái quyết định lúc mở bảng.
+Giờ vật phẩm chỉ mang `bias` (cung được ưu ái, dùng cho quái mang buff), gói `state` **không gửi
+`sg`** nữa, và client vẽ một glyph chung `❖`.
+
+**2. Bốc cung có trọng số.** Bốc đều 12 cung thì gom đủ 5 slot cùng cung — tức BỘ HỢP CUNG, đích
+ngắm của cả hệ blessing — gần như không bao giờ xảy ra. Giờ trọng số của một cung tính theo **số
+slot đang giữ** của chính cung đó: `PULL_W = [1, 10, 35, 90, 200]`. Giữ 2 slot Sư Tử thì 76% lần
+nhặt sau ra Sư Tử. Quái mang buff nhân thêm ×3 cho cung của buff.
+
+`test-bless.js` đo thẳng trên hàm trích từ server, mô phỏng 12 lượt nhặt/ván:
+
+| | đủ bộ | cung gom nhất |
+|---|---|---|
+| bốc đều (bản cũ) | 0.0% | 1.45/5 |
+| trọng số (bản mới) | ~22% | 3.44/5 |
+
+Chọn mức `[1,10,35,90,200]` sau khi quét 4 mức: mức thấp hơn vẫn dưới 10% (chưa giải được vấn đề),
+mức cao hơn lên 35–42% và bắt đầu thành cho không. Người chơi **biết bỏ qua** lúc bảng chọn chỉ còn
+cách đè lên bộ đang gom thì tỉ lệ lên ~30% ở 12 lượt và >50% ở 20 lượt.
+
+**3. Bảng chọn = 3 slot của MỘT cung, chọn trùng thì nâng cấp.** Cung do server chốt lúc nhặt, client
+chỉ chọn slot. `rollSlots()` ưu tiên slot trống (trọng số 5) và slot đang giữ đúng cung đó (4) hơn
+slot đang giữ cung khác (1) — hai đường đầu đều tiến tới đủ bộ, đường thứ ba là phá bộ đang gom.
+Chọn trùng đúng cung ở đúng slot thì **lên cấp** (`p.blLv[slot]`, trần `BL_MAXLV = 4`); mỗi cấp cộng
++4% sát thương, −3% sát thương nhận, +6 HP, +4 mana. Tới trần thì quy ra +12 HP / +1.5 sát thương
+thẳng, để không có lựa chọn chết.
+- Bị động **Song Tử** đổi nội dung: "mở rương hiện 2 lựa chọn" → "bảng chọn hiện thêm 1 lựa chọn"
+  (4 thay vì 3), vì cơ chế cũ không còn tồn tại.
+- Merchant "đổi 1 blessing sang cung khác" giờ cũng bốc theo trọng số (`rollSign(p, null, [cung cũ])`)
+  chứ không bốc đều — không thì món đó đi ngược cả cơ chế.
+- **Trỏ vào huy hiệu blessing để xem nó làm gì** (`#bltip`): tên cung + chủ đề, câu mô tả đúng slot,
+  vạch cấp `n/4`, cấp sau được gì, tổng số cấp đang có, và tiến độ bộ ("Bộ Sư Tử: 2/5 · thiếu Kỹ năng
+  R, Bị động, Lướt" → "✦ BỘ HỢP CUNG: Bá Vương"). Slot trống thì nói slot đó là gì. Mọi con số lấy từ
+  `cfg` (`BL_MAXLV`, `BL_UP`) chứ không chép lại ở client.
+  Hai chỗ phải làm khác cách thường: (1) **không** cho `.sl` ăn chuột — dải huy hiệu nằm sát mép trái,
+  bật `pointer-events` là bấm ở đó không bắn được nữa, nên dò trúng bằng toạ độ ngay trong handler
+  `mousemove` của canvas; (2) chỉ dựng lại `innerHTML` khi dữ liệu đổi — `mousemove` bắn liên tục, vẽ
+  mỗi lần thì `offsetHeight` đo lại mỗi frame và hộp nhấp nháy. Mở modal bằng bàn phím thì không có
+  `mousemove` nào tới để dọn hộp, nên `syncHud()` gọi lại `blTip()` khi hộp đang hiện.
+- HUD: cấp dán góc ô glyph của dải blessing. Bảng chọn có dải tên cung + đếm "ĐANG GIỮ n/5", hàng
+  nâng cấp viền vàng, hàng đè lên bộ khác viền đỏ.
+
+### Nút "cung ngẫu nhiên" ở sảnh (20/08/2026)
+Ô thứ 13 trong lưới chọn cung ở cổng dịch chuyển. Bấm là server bốc (`setsign` nhận `v = '?'`) và
+đánh dấu `p.randSign`; đổi lại được `RAND_BUFF`: **+10 HP · +8 mana · +1 sát thương · +4% tốc chạy ·
++2% chí mạng**, áp trong `recompute()` nên sống qua `startMatch()`. Chọn tay lại thì mất buff.
+Mô tả buff gửi qua `cfg.RAND_BUFF_TXT` để client không chép lại con số — chép là cân bằng lại lệch ngay.
+Bot **không** ăn buff này (bot vẫn bốc cung ngẫu nhiên như trước) để số liệu cân bằng còn so được.
+
+### Bảng cổng dịch chuyển: bấm rồi vẫn đi lại được (20/08/2026)
+Chọn cung xong thì nút "QUAY LAI" biến mất, chỉ còn "VAO MAP 1" — bấm xong phải chờ người khác mà
+không có cách nào rời bảng ngoài phím `F`/`Esc` mà không chỗ nào chỉ. Sửa:
+- Nút **DONG [F / ESC]** có mặt ở **mọi** trạng thái. `ready` nằm ở server nên đóng bảng không mất —
+  ghi thẳng câu đó trong bảng cho người chơi biết.
+- Đã sẵn sàng thì có thêm nút **HUY SAN SANG** (gửi `{t:'ready', v:false}`, lệnh đã có sẵn), và dải
+  chờ ở đỉnh màn hình thêm "BAN DA SAN SANG".
+- `npcSig` (khoá vẽ lại) trước chỉ gồm `cls|sign|weapon|mtoken`, nên **đồng hồ đếm ngược và danh
+  sách "đang chờ ai" trong bảng cổng đứng chết** ở lần vẽ đầu. Giờ gồm cả `ready` và `lb`.
+
+### Test mới
+- `test-bless.js` — trọng số bốc cung, bảng chọn, tỉ lệ gom đủ bộ (so bản cũ/mới), nâng cấp. Trích
+  `rollSign`/`rollSlots` bằng `vm` từ `map1-server.js` nên không lệch bản.
+- `test-bless-live.js` — server thật + 2 client thô: chọn cung ngẫu nhiên → sẵn sàng → huỷ sẵn sàng
+  → vào map → nhặt → chọn slot → nâng cấp. Soát dạng gói `offer {sign, slots}`, `me.blv`, và **mỗi
+  lần chọn trùng cung ở slot chưa tới trần đều thành một cấp**.
+
+⚠ Viết `test-bless-live.js` mất mấy vòng vì client thô **không có tìm đường** (bot có A*, client thì
+không) — bắt nó đi tới rương/quái là đo nav chứ không đo blessing, và cày quái thì 2/3 số gói là
+đang nằm chờ hồi sinh nên chẳng nhặt được gì. Ba điều rút ra, ghi lại cho lần sau:
+1. Thêm knob `BLESS_RATE` (mặc định 1 = y nguyên nhịp thật), giống cách `SKIN=` ép biến thể map.
+   `BLESS_RATE > 1` thì blessing định kỳ rơi **ngay dưới chân từng người thật** và bỏ trần 4 món —
+   thả cho một người thôi thì món đọng dưới chân người AFK, đủ 4 là tắt hẳn nguồn thả.
+2. Client test **chạy xa quái** chứ không cày: việc duy nhất nó cần làm là đừng chết.
+3. Chỉ `brute` và quái mang buff mới rơi blessing. Đứng cày slime cả ván không ra bảng chọn nào.
 
 ## Ba chỗ làm khác `SPRITES_HANDOFF.md` (cân nhắc lại nếu cần)
 
