@@ -24,7 +24,8 @@ const os = require('os');
  * boss / rương / bãi quái / merchant / cổng đã kiểm tra nằm trên sàn. */
 const LAYOUTS = {
   crypt: require('./assets/map1-layout.js'),
-  ruin: require('./assets/map1-ruin-layout.js')
+  ruin: require('./assets/map1-ruin-layout.js'),
+  forge: require('./assets/map2-forge-layout.js')
 };
 
 /* Sảnh là NGÔI LÀNG — map riêng, không theo skin của map đấu. Làng là chỗ duy
@@ -37,11 +38,36 @@ const ROOT = __dirname;
 const TICK = 1000 / 30;
 const DT = 1 / 30;
 
-const MW = 2400, MH = 1600;        // map 1 — rộng hơn màn hình, có camera
+/* Kích thước thế giới KHÔNG còn cố định: mỗi chặng một cỡ map, đặt lại trong
+   applyLayout() theo lưới của biến thể đang chạy. */
+let MW = 2400, MH = 1600;
 const MAXP = 6;
 const BOTS = Number(process.env.BOTS ?? 5);          // bot lấp chỗ để test một mình
 const MATCH_TIME = Number(process.env.MATCH_TIME || 600);   // 10 phút
+const MAP2_TIME = Number(process.env.MAP2_TIME || 480);     // 8 phút
 const EXODUS_TIME = 30;            // 30 giây mở cổng + mưa thiên thạch
+
+/* ---- CHẶNG ----
+   Một ván đi qua nhiều map: hết giờ map 1 -> cổng dịch chuyển -> map 2. Ai
+   không kịp qua cổng thì bị loại (vẫn giữ nguyên token đã kiếm, không phạt).
+   Mọi con số khác nhau giữa các map gom hết vào bảng này, để thêm map 3 sau
+   chỉ là thêm một dòng chứ không phải rải `if (map === 2)` khắp file. */
+const STAGES = [
+  {
+    n: 1, nm: 'MAP 1', skins: ['crypt', 'ruin'],
+    time: MATCH_TIME, exodus: EXODUS_TIME, gateTxt: 'MAP 2',
+    monMul: 1, bossMul: 1, chestTok: [1, 2], killTok: 1, buffPct: 0.33, blessBig: 0.15
+  },
+  {
+    n: 2, nm: 'MAP 2', skins: ['forge'],
+    time: MAP2_TIME, exodus: 25, gateTxt: null,     // gateTxt null = chặng cuối hiện có
+    monMul: 2, bossMul: 1.6, chestTok: [3, 6], killTok: 3, buffPct: 0.66, blessBig: 0.25
+  }
+];
+const stage = () => STAGES[ROOM.stage] || STAGES[0];
+/* Nút xoay để test: START_STAGE=2 cho ván bắt đầu thẳng ở map 2, khỏi phải
+   chơi hết map 1 mới nhìn thấy nó. Giống cách SKIN= ép biến thể địa hình. */
+const START_STAGE = Math.min(STAGES.length - 1, Math.max(0, (Number(process.env.START_STAGE) || 1) - 1));
 const BOSS_AT = Math.round(MATCH_TIME * 0.35);       // world boss xuất hiện
 const MERCHANT_DELAY = 30;         // merchant chỉ xuất hiện sau 30 giây đầu ván
 const MERCHANT_ROTATE = 120;       // đổi merchant đang mở mỗi 2 phút
@@ -355,7 +381,7 @@ function inLobbyWall(x, y, pad) {
 function toLobby(p) {
   p.x = LOBBY.spawn.x + rnd(-70, 70);
   p.y = LOBBY.spawn.y + rnd(-40, 40);
-  p.ready = false; p.alive = true; p.escaped = false;
+  p.ready = false; p.alive = true; p.escaped = false; p.out = false;
   p.hp = p.mhp; p.mp = p.mmp; p.shield = 0;
   p.nearNpc = null; p.atGate = false;
   p.in = { up: 0, dn: 0, lf: 0, rt: 0, aim: 0, fire: 0, use: 0 };
@@ -453,6 +479,8 @@ const CAMP_MIX = [
 function applyLayout(key) {
   MAP = LAYOUTS[key] || LAYOUTS.ruin;
   const L = MAP;
+  /* Cỡ thế giới bám theo lưới của biến thể — map 2 nhỏ hơn map 1 một phần ba. */
+  MW = L.GW * L.CELL; MH = L.GH * L.CELL;
   BOSS_POS = { x: L.BOSS_POS[0], y: L.BOSS_POS[1] };
   CHEST_SPOTS = L.CHEST_SPOTS.map(s => ({ x: s[0], y: s[1] }));
   MERCHANTS = L.MERCHANTS.map(s => ({ x: s[0], y: s[1] }));
@@ -494,6 +522,9 @@ function ev(e) { if (ROOM.ev.length < 200) ROOM.ev.push(e); }
 function mapPacket() {
   return {
     t: 'map', skin: MAP.key, cell: MAP.CELL, rows: MAP.ROWS,
+    w: MW, h: MH,                       // mỗi chặng một cỡ map
+    solid: MAP.SOLID || '#',            // map 2 có 2 ký tự cản ('#' và '~')
+    stage: stage().n,
     boss: [BOSS_POS.x, BOSS_POS.y],
     camps: CAMPS.map(c => [c.x, c.y, c.r]),
     chests: CHEST_SPOTS.map(c => [c.x, c.y]),
@@ -522,6 +553,7 @@ function buildNav() {
   const L = MAP;
   NAV_W = L.GW; NAV_H = L.GH; NAV_CELL = L.CELL;
   NAV_OK = new Uint8Array(NAV_W * NAV_H);
+  ensureAStar(NAV_W * NAV_H);
   for (let gy = 0; gy < NAV_H; gy++) {
     for (let gx = 0; gx < NAV_W; gx++) {
       const cx = gx * NAV_CELL + NAV_CELL / 2, cy = gy * NAV_CELL + NAV_CELL / 2;
@@ -560,11 +592,18 @@ function navCellNear(x, y) {
   return -1;
 }
 
-/* Bộ đệm A* cấp phát một lần, dùng lại mỗi lượt gọi. */
-const A_G = new Float32Array(75 * 50), A_F = new Float32Array(75 * 50);
-const A_PREV = new Int32Array(75 * 50), A_STATE = new Uint8Array(75 * 50);
+/* Bộ đệm A* — cấp phát theo lưới lớn nhất từng gặp rồi dùng lại. Không thể để
+   cố định 75x50 nữa: mỗi chặng một cỡ lưới. */
+let A_CAP = 0;
+let A_G = null, A_F = null, A_PREV = null, A_STATE = null, A_SEEN = null;
 let A_STAMP = 0;
-const A_SEEN = new Int32Array(75 * 50);
+function ensureAStar(n) {
+  if (n <= A_CAP) return;
+  A_CAP = n;
+  A_G = new Float32Array(n); A_F = new Float32Array(n);
+  A_PREV = new Int32Array(n); A_STATE = new Uint8Array(n);
+  A_SEEN = new Int32Array(n); A_STAMP = 0;
+}
 
 /* Trả về mảng waypoint từ (từ) tới (đến). Rỗng = không tìm được đường. */
 function findPath(from, to) {
@@ -646,7 +685,7 @@ function pickSpawns() {
     if (wantRoad && ch !== ',') continue;
     const x = gx * L.CELL + L.CELL / 2, y = gy * L.CELL + L.CELL / 2;
     if (inWall(x, y, 20)) continue;
-    if (Math.hypot(x - BOSS_POS.x, y - BOSS_POS.y) < 520) continue;
+    if (Math.hypot(x - BOSS_POS.x, y - BOSS_POS.y) < (L.SPAWN_MIN || 520)) continue;
     cand.push({ x, y });
   }
   if (cand.length < MAXP) return [];              // để nơi gọi tự xoay xở
@@ -672,7 +711,8 @@ function pickSpawns() {
 function makeRoom() {
   return {
     ph: 'lobby',          // lobby | playing | exodus | over
-    skin: MAP.key,        // crypt | ruin — biến thể địa hình của ván này
+    stage: 0,             // chỉ số trong STAGES — 0 = map 1, 1 = map 2
+    skin: MAP.key,        // crypt | ruin | forge — biến thể địa hình đang chạy
     t: 0,                 // giây đã trôi trong phase hiện tại
     players: [], enemies: [], projs: [], chests: [], loot: [],
     pools: [],            // vũng độc / hào quang
@@ -689,14 +729,18 @@ function makeRoom() {
 applyLayout('ruin');
 let ROOM = makeRoom();
 
-function resetWorld() {
-  /* Bốc biến thể địa hình cho ván này. Phải bốc ở đây — client tự random thì
-     6 người sẽ chơi trên 6 map khác nhau. */
-  applyLayout(LAYOUTS[process.env.SKIN] ? process.env.SKIN : (Math.random() < 0.5 ? 'crypt' : 'ruin'));
+function resetWorld(stageIdx) {
+  /* Bốc biến thể địa hình cho chặng này. Phải bốc ở server — client tự random
+     thì 6 người sẽ chơi trên 6 map khác nhau. */
+  ROOM.stage = stageIdx || 0;
+  const sk = stage().skins;
+  const forced = LAYOUTS[process.env.SKIN] && sk.includes(process.env.SKIN) ? process.env.SKIN : null;
+  applyLayout(forced || sk[Math.floor(Math.random() * sk.length)]);
   ROOM.skin = MAP.key;
   ROOM.enemies = []; ROOM.projs = []; ROOM.loot = []; ROOM.pools = [];
   ROOM.gates = []; ROOM.meteors = []; ROOM.results = null;
   ROOM.bossUp = false; ROOM.bossDead = false;
+  ROOM.campT = 0; ROOM.blessT = 0; ROOM.buffT = 0;
   ROOM.merchantOpen = -1; ROOM.merchantT = 0; ROOM.merchantRot = 0; ROOM.stock = [];
   ROOM.chests = CHEST_SPOTS.map((s, i) => ({ id: i, x: s.x, y: s.y, open: false, prog: 0, by: -1, rt: 0 }));
   for (const c of CAMPS) for (let i = 0; i < c.n; i++) spawnAtCamp(c);
@@ -719,6 +763,7 @@ function makePlayer(ws, nm, cls, slot, bot, sign) {
     bl: { atk: null, e: null, r: null, pas: sg, dash: null },
     /* Cấp của từng slot — chọn trùng đúng cung đang giữ thì lên cấp. */
     blLv: { atk: 1, e: 1, r: 1, pas: 1, dash: 1 },
+    out: false, outStage: 0, won: 0, tokenFinal: 0,   // cờ chặng: bị loại ở map nào
     /* meta — giữ qua các ván, không reset khi startMatch */
     metaToken: 0, weapon: null, nearNpc: null, atGate: false,
     /* cây kỹ năng */
@@ -801,8 +846,21 @@ function recompute(p) {
 }
 
 /* ============================ QUÁI ============================ */
+/* Chỉ số quái nhân theo chặng: map 2 là x2 máu / x2 sát thương đúng bản thiết kế.
+   Xu và kinh nghiệm nhân nhẹ hơn (x1.5) — quái dai gấp đôi mà thưởng cũng gấp đôi
+   thì map 2 thành chỗ cày ngon hơn PvP, đi ngược ý đồ. */
+function monStats(ty, boss) {
+  const b = ETYPES[ty], st = stage();
+  const m = boss ? st.bossMul : st.monMul;
+  const rw = 1 + (m - 1) * 0.5;
+  return {
+    hp: Math.round(b.hp * m), spd: b.spd, dmg: Math.round(b.dmg * m * 10) / 10,
+    xp: Math.round(b.xp * rw), coin: Math.round(b.coin * rw), r: b.r, big: b.big, ranged: !!b.ranged
+  };
+}
+
 function spawnAtCamp(c) {
-  const b = ETYPES[c.ty];
+  const b = monStats(c.ty, false);
   /* Bãi quái là hình tròn vẽ trên bản thiết kế nên mép nó ăn cả vào lùm cây /
      đá đặc. Thu dần bán kính rồi mới chịu về đúng tâm bãi — tâm luôn nằm trên
      sàn — thay vì thả bừa con quái vào trong vật cản. */
@@ -821,7 +879,7 @@ function spawnAtCamp(c) {
 }
 
 function spawnBoss() {
-  const b = ETYPES.boss;
+  const b = monStats('boss', true);
   const e = {
     id: UID++, ty: 'boss', x: BOSS_POS.x, y: BOSS_POS.y, hx: BOSS_POS.x, hy: BOSS_POS.y,
     r: b.r, hp: b.hp, mhp: b.hp, spd: b.spd, dmg: b.dmg, xp: b.xp, coin: b.coin,
@@ -1005,7 +1063,7 @@ function onEnemyDown(e, src) {
   }
   /* quái lớn 15% rơi blessing; quái mang buff 10-15% rơi đúng blessing đó */
   if (e.buff && Math.random() < 0.13 * BLESS_RATE) dropBless(e.x, e.y, e.buff);
-  else if (e.big && Math.random() < 0.15 * BLESS_RATE) dropBless(e.x, e.y, null);
+  else if (e.big && Math.random() < stage().blessBig * BLESS_RATE) dropBless(e.x, e.y, null);
   if (e.boss) {
     ROOM.bossDead = true; ROOM.bossUp = false;
     dropBless(e.x - 30, e.y, null); dropBless(e.x + 30, e.y, null);
@@ -1074,8 +1132,9 @@ function onPlayerDown(p, src) {
     return;
   }
   if (src && src.slot !== undefined && src !== p) {
-    src.token += 1;
-    ev({ k: 'toast', s: -1, m: src.nm + ' hạ gục ' + p.nm + '  (+1 token)' });
+    const kt = stage().killTok;                                 // map 1: 1 · map 2: 3 token
+    src.token += kt;
+    ev({ k: 'toast', s: -1, m: src.nm + ' hạ gục ' + p.nm + '  (+' + kt + ' token)' });
   } else {
     ev({ k: 'toast', s: -1, m: p.nm + ' đã gục ngã' });
   }
@@ -1444,7 +1503,7 @@ function kb(t, from, force) {
 
 /* ============================ CẬP NHẬT NGƯỜI CHƠI ============================ */
 function updatePlayer(p) {
-  if (p.escaped) return;
+  if (p.escaped || p.out) return;    // đã qua cổng hoặc đã bị loại -> đứng ngoài vòng
 
   if (!p.alive) {
     p.deadT -= DT;
@@ -1623,7 +1682,8 @@ function openChest(p, c) {
   if (roll < 0.45) {
     offerBless(p, null, 'chest');
   } else if (roll < 0.72) {
-    const v = 1 + Math.floor(Math.random() * 2) + bonusTok;    // map 1: 1-2 token
+    const ct = stage().chestTok;                                // map 1: 1-2 · map 2: 3-6 token
+    const v = ct[0] + Math.floor(Math.random() * (ct[1] - ct[0] + 1)) + bonusTok;
     p.token += v;
     ev({ k: 'toast', s: p.slot, m: 'Rương: +' + v + ' token' });
   } else if (roll < 0.9) {
@@ -1945,7 +2005,7 @@ function step() {
   R.t += DT;
 
   /* --- bot --- */
-  for (const p of R.players) if (p.bot) updateBot(p);
+  for (const p of R.players) if (p.bot && !p.out) updateBot(p);
 
   /* --- người chơi --- */
   for (const p of R.players) updatePlayer(p);
@@ -2046,13 +2106,13 @@ function stepPlaying() {
     let n = 0;
     for (const e of R.enemies) {
       if (e.boss || e.buff) continue;
-      if (Math.random() < 0.33) { e.buff = pick(MBUFFS); n++; if (e.buff === 'tau') { e.mhp = Math.round(e.mhp * 1.4); e.hp = e.mhp; } }
+      if (Math.random() < stage().buffPct) { e.buff = pick(MBUFFS); n++; if (e.buff === 'tau') { e.mhp = Math.round(e.mhp * 1.4); e.hp = e.mhp; } }
     }
     if (n) ev({ k: 'toast', s: -1, m: n + ' con quái vừa được chúc phúc hoàng đạo' });
   }
 
   /* world boss */
-  if (!R.bossUp && !R.bossDead && R.t >= BOSS_AT) spawnBoss();
+  if (!R.bossUp && !R.bossDead && R.t >= Math.round(stage().time * 0.35)) spawnBoss();
 
   /* merchant: 30 giây đầu chưa có ai, sau đó luân phiên 3 vị trí */
   R.merchantT += DT;
@@ -2072,17 +2132,23 @@ function stepPlaying() {
   }
 
   /* hết giờ -> exodus */
-  const aliveHumans = R.players.filter(p => !p.escaped);
-  if (R.t >= MATCH_TIME) beginExodus('Hết 10 phút');
+  const st = stage();
+  if (R.t >= st.time) beginExodus('Hết giờ ' + st.nm);
 }
 
 function beginExodus(reason) {
   const R = ROOM;
+  const st = stage();
   R.ph = 'exodus'; R.t = 0;
   /* Cổng đứng ở đúng chỗ bản thiết kế đặt vòm đá — không rải ngẫu nhiên nữa,
      vì hai biến thể đều có sẵn bệ bát giác vẽ ngay dưới chân cổng. */
   R.gates = GATE_SPOTS.map((g, i) => ({ id: i, x: g.x, y: g.y, r: 54 }));
-  ev({ k: 'toast', s: -1, m: '☄ ' + reason + ' — ' + R.gates.length + ' cổng dịch chuyển đã mở! Chạy tới cổng trong 30 giây!' });
+  ev({
+    k: 'toast', s: -1,
+    m: '☄ ' + reason + ' — ' + R.gates.length + ' cổng dịch chuyển đã mở! '
+      + (st.gateTxt ? 'Tới cổng trong ' + st.exodus + ' giây để sang ' + st.gateTxt + '!'
+        : 'Tới cổng trong ' + st.exodus + ' giây để thoát với toàn bộ token!')
+  });
   ev({ k: 'exodus' });
 }
 
@@ -2121,32 +2187,92 @@ function stepExodus() {
     }
   }
 
-  if (R.t >= EXODUS_TIME) finish();
-  else if (R.players.every(p => p.escaped || !p.alive)) finish();
+  const done = R.t >= stage().exodus
+    || R.players.every(p => p.out || p.escaped || !p.alive);
+  if (!done) return;
+  /* Còn chặng sau thì người thoát được đi tiếp, người kẹt lại bị loại. */
+  if (ROOM.stage < STAGES.length - 1) advanceStage();
+  else finish();
+}
+
+/* Sang chặng kế: giữ nguyên tiến độ của người thoát (cấp, cây kỹ năng, blessing,
+   token, xu, đồ đã mua), dựng lại thế giới bằng địa hình chặng mới. Người không
+   qua được cổng bị loại — nhưng KHÔNG mất token đã kiếm, đúng bản thiết kế:
+   "bị loại thì giữ nguyên, không phạt gì cả". */
+function advanceStage() {
+  const R = ROOM;
+  const moved = R.players.filter(p => p.escaped && !p.out);
+  for (const p of R.players) {
+    if (p.escaped || p.out) continue;
+    p.out = true; p.outStage = stage().n; p.alive = false; p.deadT = 0;
+    if (!p.bot && p.ws) ev({ k: 'toast', s: p.slot, m: p.nm + ' không kịp qua cổng — bị loại (token đã kiếm vẫn giữ nguyên)' });
+  }
+  /* Không ai qua được cổng thì chẳng có gì để chơi tiếp ở map sau. */
+  if (!moved.length) { finish(); return; }
+
+  resetWorld(R.stage + 1);
+  broadcastMap();
+  placePlayers(moved);
+  for (const p of moved) {
+    p.escaped = false; p.alive = true; p.deadT = 0;
+    p.hp = p.mhp; p.mp = p.mmp; p.shield = 0; p.shieldT = 0;
+    p.iframe = 1.5;
+    p.poison = 0; p.poisonT = 0; p.slow = 0; p.vuln = 0;
+    p.opening = -1; p.openProg = 0; p.pending = null;
+    p.usedLast = false; p.reviveLeft = 1; p.aliveT = 0;
+    p.bought = {};                 // hàng merchant bày lại từ đầu ở map mới
+  }
+  R.ph = 'playing'; R.t = 0;
+  const st = stage();
+  ev({ k: 'stage', n: st.n });
+  ev({
+    k: 'toast', s: -1,
+    m: '✦ ' + st.nm + ' — LÒ DUNG NHAM. ' + moved.length + ' người đi tiếp · '
+      + Math.round(st.time / 60) + ' phút · quái mạnh gấp đôi · rương '
+      + st.chestTok[0] + '-' + st.chestTok[1] + ' token'
+  });
 }
 
 function finish() {
   const R = ROOM;
   R.ph = 'over';
-  R.results = R.players.map(p => {
-    /* Prototype chỉ có map 1 nên chưa nhân x2 — ghi rõ để không nhầm */
-    return {
-      nm: p.nm, cls: p.cls, bot: p.bot ? 1 : 0,
-      escaped: p.escaped ? 1 : 0, lv: p.lv, xu: p.xu, token: p.token,
-      bl: Object.assign({}, p.bl), combo: p.combo
-    };
-  }).sort((a, b) => (b.escaped - a.escaped) || (b.token - a.token));
-  /* token chỉ giữ được nếu thoát qua cổng — cộng vào ví meta để tiêu ở sảnh */
+  /* Thoát được ở chặng CUỐI = thắng ván -> toàn bộ token x2 (một câu luật sạch,
+     thưởng cho cả ván chứ không phải một phần thưởng cố định lúc về đích).
+     Bị loại giữa chừng -> giữ nguyên token đã kiếm, không trừ gì cả.
+     Khi có map 3, hệ số x2 dời sang chặng đó — chỉ cần thêm dòng vào STAGES. */
   for (const p of R.players) {
-    if (p.bot || !p.escaped) continue;
-    p.metaToken += p.token;
+    p.won = p.escaped && !p.out ? 1 : 0;
+    p.tokenFinal = p.won ? p.token * 2 : p.token;
+  }
+  R.results = R.players.map(p => ({
+    nm: p.nm, cls: p.cls, bot: p.bot ? 1 : 0,
+    escaped: p.won, out: p.out ? 1 : 0, stage: p.out ? p.outStage : stage().n,
+    lv: p.lv, xu: p.xu, token: p.tokenFinal, tokenRaw: p.token, x2: p.won,
+    bl: Object.assign({}, p.bl), combo: p.combo
+  })).sort((a, b) => (b.escaped - a.escaped) || (b.token - a.token));
+  for (const p of R.players) {
+    if (p.bot) continue;
+    p.metaToken += p.tokenFinal;
   }
   ev({ k: 'toast', s: -1, m: 'Ván kết thúc.' });
 }
 
+/* Chỗ đứng đầu map lấy từ SPAWNS (rải đều, xa boss). Xáo thứ tự để không ai
+   luôn vào ở cùng một góc, và nhích nhẹ để 2 người cùng ô không chồng nhau.
+   Dùng chung cho đầu ván và cho lúc sang chặng mới. */
+function placePlayers(list) {
+  const spots = SPAWNS.slice();
+  for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[spots[i], spots[j]] = [spots[j], spots[i]]; }
+  list.forEach((p, i) => {
+    const s = spots[i % spots.length];
+    if (s) { p.x = s.x + rnd(-18, 18); p.y = s.y + rnd(-18, 18); if (inWall(p.x, p.y, 12)) { p.x = s.x; p.y = s.y; } }
+    else { let tr = 0; do { p.x = rnd(150, MW - 150); p.y = rnd(150, MH - 150); tr++; } while (inWall(p.x, p.y, 16) && tr < 60); }
+  });
+}
+
 function startMatch() {
   ROOM.cd = -1;
-  resetWorld();
+  resetWorld(START_STAGE);
   broadcastMap();          // biến thể vừa bốc — client dựng lại lớp nền theo gói này
   /* thêm bot cho đủ chỗ */
   const names = ['Bot Lâm', 'Bot Khoa', 'Bot Vy', 'Bot Nam', 'Bot Hạ', 'Bot Trí'];
@@ -2159,17 +2285,10 @@ function startMatch() {
     bi++;
     ROOM.players.push(b);
   }
-  /* Chỗ đứng đầu ván lấy từ SPAWNS (rải đều, xa boss). Xáo thứ tự để không ai
-     luôn vào ở cùng một góc, và nhích nhẹ để 2 người cùng ô không chồng nhau. */
-  const spots = SPAWNS.slice();
-  for (let i = spots.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[spots[i], spots[j]] = [spots[j], spots[i]]; }
-  ROOM.players.forEach((p, i) => {
-    const s = spots[i % spots.length];
-    if (s) { p.x = s.x + rnd(-18, 18); p.y = s.y + rnd(-18, 18); if (inWall(p.x, p.y, 12)) { p.x = s.x; p.y = s.y; } }
-    else { let tr = 0; do { p.x = rnd(150, MW - 150); p.y = rnd(150, MH - 150); tr++; } while (inWall(p.x, p.y, 16) && tr < 60); }
-  });
+  placePlayers(ROOM.players);
   for (const p of ROOM.players) {
     p.hp = p.mhp; p.mp = p.mmp; p.alive = true; p.escaped = false;
+    p.out = false; p.outStage = 0; p.won = 0; p.tokenFinal = 0;
     p.xu = 0; p.token = 0; p.lv = 1; p.xp = 0; p.xn = 40;
     p.bonusHp = 0; p.bonusAtk = 0;
     p.bl = { atk: null, e: null, r: null, pas: p.sign || null, dash: null };
@@ -2181,7 +2300,13 @@ function startMatch() {
     recompute(p);
   }
   ROOM.ph = 'playing'; ROOM.t = 0;
-  ev({ k: 'toast', s: -1, m: 'Bắt đầu! 10 phút săn đồ trên map 1.' });
+  const st0 = stage();
+  ev({ k: 'stage', n: st0.n });
+  ev({
+    k: 'toast', s: -1,
+    m: 'Bắt đầu! ' + Math.round(st0.time / 60) + ' phút săn đồ trên ' + st0.nm.toLowerCase()
+      + (st0.gateTxt ? ' — qua cổng cuối giờ để sang ' + st0.gateTxt.toLowerCase() + '.' : '.')
+  });
 }
 
 /* ============================ SNAPSHOT ============================ */
@@ -2195,6 +2320,7 @@ function snapshot(forSlot) {
     x: Math.round(p.x), y: Math.round(p.y), a: Math.round(p.aim * 100) / 100,
     hp: Math.max(0, Math.round(p.hp)), mhp: p.mhp, mp: Math.round(p.mp), mmp: p.mmp,
     sh: Math.round(p.shield), lv: p.lv, al: p.alive ? 1 : 0, es: p.escaped ? 1 : 0,
+    ko: p.out ? 1 : 0,
     dt: Math.max(0, Math.round(p.deadT * 10) / 10),
     ps: p.poisonT > 0 ? 1 : 0, tau: p.stackTau, cb: p.combo || 0,
     bl: (p === me || seeAll) ? p.bl : undefined,
@@ -2212,7 +2338,8 @@ function snapshot(forSlot) {
 
   const out = {
     t: 'state', ph: R.ph, skin: R.skin,
-    tm: Math.max(0, Math.round(((R.ph === 'playing' ? MATCH_TIME : EXODUS_TIME) - R.t) * 10) / 10),
+    st: stage().n, stn: STAGES.length,
+    tm: Math.max(0, Math.round(((R.ph === 'playing' ? stage().time : stage().exodus) - R.t) * 10) / 10),
     P, E,
     R: inLobby ? [] : R.projs.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), ty: p.ty, a: Math.round(Math.atan2(p.vy, p.vx) * 100) / 100, o: p.own })),
     /* blessing trên sàn là vật phẩm chung — KHÔNG gửi cung, nhìn không ra được. */
@@ -2232,7 +2359,7 @@ function snapshot(forSlot) {
       cd: R.cd >= 0 ? Math.ceil(R.cd) : -1,
       w: R.players.filter(p => !p.bot && !p.ready).map(p => p.nm).slice(0, 5)
     } : undefined,
-    bossIn: R.ph === 'playing' && !R.bossUp && !R.bossDead ? Math.max(0, Math.round(BOSS_AT - R.t)) : -1,
+    bossIn: R.ph === 'playing' && !R.bossUp && !R.bossDead ? Math.max(0, Math.round(Math.round(stage().time * 0.35) - R.t)) : -1,
     ev: R.ev
   };
   if (me) {
@@ -2296,7 +2423,7 @@ server.on('upgrade', (req, sock) => {
   sock.on('error', () => onClose(ws));
   send(ws, JSON.stringify({
     t: 'welcome', maxp: MAXP,
-    cfg: { MW, MH, MATCH_TIME, EXODUS_TIME, SIGNS, SIGN_NM, SIGN_THEME, SLOTS, SLOT_NM, BLESS, COMBO_NM, SHOP, CLASSES, MINLV, META, LOBBY, WEAPONS, BL_MAXLV, BL_UP, RAND_BUFF_TXT },
+    cfg: { MW, MH, MATCH_TIME, EXODUS_TIME, STAGES: STAGES.map(st => ({ n: st.n, nm: st.nm, time: st.time, exodus: st.exodus, chestTok: st.chestTok, killTok: st.killTok, monMul: st.monMul })), SIGNS, SIGN_NM, SIGN_THEME, SLOTS, SLOT_NM, BLESS, COMBO_NM, SHOP, CLASSES, MINLV, META, LOBBY, WEAPONS, BL_MAXLV, BL_UP, RAND_BUFF_TXT },
     map: mapPacket()
   }));
 });
@@ -2364,7 +2491,7 @@ function handleMsg(ws, m) {
     if (ROOM.ph !== 'lobby') {
       if (ROOM.players.some(q => !q.bot && q.ws)) {
         const left = ROOM.ph === 'over' ? 0
-          : Math.max(0, Math.round((ROOM.ph === 'playing' ? MATCH_TIME : EXODUS_TIME) - ROOM.t));
+          : Math.max(0, Math.round((ROOM.ph === 'playing' ? stage().time : stage().exodus) - ROOM.t));
         send(ws, JSON.stringify({ t: 'wait', tm: left }));
         return;
       }
@@ -2452,7 +2579,8 @@ function handleMsg(ws, m) {
          class / cung / vũ khí giữ nguyên để đi ván tiếp. */
       if (ROOM.ph === 'over') {
         ROOM.ph = 'lobby'; ROOM.t = 0; ROOM.results = null;
-        resetWorld();
+        /* Về sảnh thì quay lại chặng đầu — không thì ván sau bắt đầu ở map 2. */
+        resetWorld(START_STAGE);
         broadcastMap();
         for (const q of ROOM.players) { if (!q.bot) toLobby(q); }
         ROOM.players = ROOM.players.filter(q => !q.bot);

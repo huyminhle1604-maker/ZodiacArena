@@ -1,6 +1,6 @@
 # Tiến độ — Zodiac Arena
 
-Cập nhật: **20/08/2026**
+Cập nhật: **20/09/2026**
 
 ## Trạng thái: chạy được, đã test, chưa chơi tay người
 
@@ -260,6 +260,95 @@ không) — bắt nó đi tới rương/quái là đo nav chứ không đo bless
 2. Client test **chạy xa quái** chứ không cày: việc duy nhất nó cần làm là đừng chết.
 3. Chỉ `brute` và quái mang buff mới rơi blessing. Đứng cày slime cả ván không ra bảng chọn nào.
 
+### MAP 2 — LÒ DUNG NHAM, và chuỗi map 1 -> map 2 (20/09/2026)
+Trước đây hết giờ map 1 là ván kết thúc luôn. Giờ đúng vòng lặp extraction của
+bản thiết kế: **map 1 -> cổng dịch chuyển -> map 2 -> bảng kết quả**.
+
+**Địa hình** `assets/map2-forge-layout.js` — miệng núi lửa **60×40 ô = 1920×1280 px**,
+nhỏ hơn map 1 (2400×1600) đúng một phần ba như thiết kế đòi. Bốn **sông dung nham**
+chạy chéo từ quảng trường tâm ra vách, chia lòng chảo thành 4 khu; qua lại chỉ
+bằng **4 cầu đá** trên vành đai đường tro, hoặc bằng **4 nan hoa** đổ về quảng
+trường tâm. Tâm map vừa là chỗ boss vừa là ngã tư duy nhất -> PvP ở map 2 nổ ra
+sớm hơn map 1 mà không cần ép bằng luật. Sàn 54,5%, 9 bãi quái (~53 con), 12 rương,
+3 merchant cố định, 2 cổng.
+
+**Một thứ map 1 không có: HAI ký tự vật cản.** `'#'` là bazan, `'~'` là dung nham —
+cả hai đều không đi qua được, nhưng phải đọc ra hai thứ khác nhau. Layout khai
+thêm trường `SOLID = '#~'` và `solid()` xét cả hai; gói `map` gửi `solid` cho
+client, `walk()` ở client đổi từ `!== '#'` sang tra bảng ký tự đó. Cứ hardcode
+`'#'` là dung nham thành sàn đi được ở phía client — vẽ sai mép và minimap sai.
+
+**Chặng (`STAGES`)** — mọi con số khác nhau giữa các map gom vào một bảng ở đầu
+`map1-server.js`, chứ không rải `if (map === 2)` khắp file. Thêm map 3 sau chỉ là
+thêm một dòng.
+
+| | map 1 | map 2 |
+|---|---|---|
+| thời gian | 10 phút | 8 phút |
+| quái | ×1 | **×2 máu, ×2 sát thương** (xu/exp chỉ ×1.5 — dai gấp đôi mà thưởng cũng gấp đôi thì map 2 thành chỗ cày ngon hơn PvP) |
+| rương | 1–2 token | **3–6 token** |
+| giết người | 1 token | **3 token** |
+| quái được buff mỗi phút | 33% | **66%** |
+| quái lớn rơi blessing | 15% | **25%** |
+| cổng thoát | 4–2 cái, 30 giây | 2 cái, 25 giây |
+
+**Cỡ thế giới hết cố định.** `MW/MH` từ `const 2400/1600` thành `let`, đặt lại
+trong `applyLayout()` theo lưới của biến thể. Kéo theo: bộ đệm A* không còn cấp
+phát cứng `75*50` mà cấp theo lưới lớn nhất từng gặp (`ensureAStar`); ngưỡng
+"chỗ đứng đầu map phải cách bệ boss" đọc từ `SPAWN_MIN` của layout (map 2: 360px,
+để 520px thì map nhỏ không còn chỗ nào hợp lệ); gói `map` gửi kèm `w`/`h` và
+client cập nhật `CFG.MW/MH` **trước** khi dựng lại canvas đệm.
+
+**Sang chặng** (`advanceStage`): ai qua được cổng thì giữ nguyên toàn bộ tiến độ
+(cấp, cây kỹ năng, blessing, token, xu, chỉ số mua thêm), hồi đầy máu, 1,5 giây
+bất tử, đứng ở chỗ spawn của map mới; hàng đã mua ở merchant bày lại từ đầu.
+Ai không kịp thì `p.out = true` — **vẫn giữ nguyên token đã kiếm, không phạt gì
+cả**, đúng câu luật của bản thiết kế. Không ai qua cổng thì kết thúc luôn.
+
+**Kết thúc ván**: thoát được ở chặng CUỐI = thắng -> **toàn bộ token ×2**. Bảng
+kết quả ghi rõ ai vô địch (x2), ai bị loại ở map nào. Khi có map 3 thì hệ số ×2
+tự dời sang đó, không phải sửa gì thêm.
+
+**Người bị loại vẫn ở lại xem**: server bỏ họ ra khỏi vòng cập nhật
+(`updatePlayer` / `updateBot` return sớm), client không vẽ họ trên map/minimap
+nữa (toạ độ của họ là toạ độ map trước), camera **bám một người còn sống** và
+có dải báo "BAN DA BI LOAI · DANG XEM · TOKEN DA KIEM VAN GIU". Không có dải đó
+thì người chơi ngồi nhìn màn hình không hiểu sao mình không điều khiển được gì.
+
+**Vẽ map 2** (`paintForge` + `PAL.forge`): dung nham là thứ sáng nhất map và tự
+phát quầng (bake thẳng vào canvas nền, lọc thưa 1/3 ô — vẽ mỗi frame cho ~200 ô
+là phí); bazan vẫn tối hơn sàn một bậc, và **mọi** ô bazan đều được vẽ ra vật
+liệu (ô sâu = khối có mạch so le) — đúng cách đã sửa lỗi "tường vô hình" ở hầm
+mộ. Mép dung nham có viền vỏ nguội ở cả 4 hướng để bờ sông đọc được từ mọi phía.
+
+Hai chỗ phải chỉnh sau khi nhìn tận mắt:
+1. **Đường tro phải sáng hơn nền tro rõ rệt.** Bản đầu để chênh một bậc mờ thì
+   cả vành đai lẫn 4 nan hoa — bộ xương để đọc map 2 — biến mất thành một mảng
+   nâu đều tịt.
+2. **Vignette tính bán kính theo cỡ map thật** thay vì số cứng 1500 của map 1:
+   map 2 nhỏ hơn nên để số cũ thì gần như không thấy vignette đâu.
+
+**Nút xoay để test**: `START_STAGE=2` cho ván bắt đầu thẳng ở map 2 (khỏi chơi
+hết map 1 mới nhìn thấy nó), `MAP2_TIME` đổi độ dài map 2 — cùng kiểu với `SKIN=`
+và `BLESS_RATE=` đã có.
+
+```bash
+START_STAGE=2 node map1-server.js
+```
+
+**Test**: `test-nav.js` chạy cả ba địa hình (276/276 cặp điểm quan trọng nối được
+trên map 2, findPath 0,05 ms/lần); `test-map1.js` giờ chơi **trọn một ván hai map**
+— soát đổi cỡ map, đổi lưới, gói state báo đúng chặng, người bị loại, và không ai
+kẹt trong vật cản ở cả hai map.
+
+```bash
+node test-map1.js                    # map 1: 30s -> map 2: 25s
+```
+
+⚠ `test-bless-live.js` có một phép thử thống kê (`gom được n/5 slot cùng cung`)
+thỉnh thoảng ra 2/5 và báo hỏng. Là dao động của xúc xắc, không phải hồi quy —
+chạy lại là đạt.
+
 ## Ba chỗ làm khác `SPRITES_HANDOFF.md` (cân nhắc lại nếu cần)
 
 1. **Xác quái dùng diff `ANIM` thay vì event `die`** — event `die` không mang `r`, mà `scale = r/8` cần nó; cách diff còn bắt được quái chết vì độc.
@@ -299,7 +388,13 @@ Loại thẳng Vercel/Netlify/Cloudflare Pages: serverless không giữ được
 
 `PORT` đã đọc từ `process.env.PORT` và client đã tự chọn `wss://` khi trang chạy https — hai thứ này sẵn sàng rồi.
 
-### 4. Từ roadmap gốc, chưa đụng
+### 4. Map 3 — chặng cuối, chưa làm
+Hạ tầng chặng đã sẵn (`STAGES` + `advanceStage`), thêm map 3 là thêm một dòng vào
+bảng cộng một file layout. Nội dung theo bản thiết kế: map nhỏ nhất, 5 phút,
+**không có rương**, nguồn token duy nhất là giết người (5 token), artifact hiện
+giữa map sau 30 giây, người cầm bị lộ vị trí và chậm 20%.
+
+### 5. Từ roadmap gốc, chưa đụng
 - Boss co-op cần đủ 3 vai (tank chịu đòn / healer đỡ / DPS burst).
 - Hồi sinh đồng đội đầy đủ (hiện mới có tăng tốc hồi sinh).
 - Leaderboard có lịch sử đấu / streak (đã có endpoint `/leaderboard` trả JSON).

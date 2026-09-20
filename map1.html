@@ -412,9 +412,10 @@
     <div class="clockbox">
       <span class="lb" id="phaseL">SAN DO</span>
       <span id="clock">10:00</span>
-      <span class="lb">MAP 1</span>
+      <span class="lb" id="stageL">MAP 1</span>
     </div>
     <div class="warnbox hide" id="bossline"><i></i><span id="bosstx"></span></div>
+    <div class="warnbox hide" id="koline"><i></i><span id="kotx"></span></div>
   </div>
 
   <!-- 4. toast (trên phải) -->
@@ -867,19 +868,21 @@ function showOver(res){
   var b='<div style="display:flex;flex-direction:column;gap:8px">';
   res.forEach(function(r,i){
     var me=r.nm===myNm;
-    var sub='CAP '+r.lv+(r.combo?' · '+px(CFG.COMBO_NM[r.combo]):'')+' · '+(r.escaped?'✦ THOAT':'MAT TRANG');
+    var fate = r.escaped ? '✦ VO DICH · TOKEN x2'
+             : (r.out ? 'BI LOAI O MAP '+(r.stage||1) : 'KHONG QUA DUOC CONG');
+    var sub='CAP '+r.lv+(r.combo?' · '+px(CFG.COMBO_NM[r.combo]):'')+' · '+fate;
     b+='<div class="rrow'+(me?' me':'')+((!me&&r.bot&&!r.escaped)?' dim':'')+'">'+
        '<span class="rk">'+(i+1)+'</span>'+
        '<span><span class="nm">'+r.nm+'</span>'+
          '<div class="sub'+(r.escaped?'':' lost')+'">'+sub+'</div></span>'+
        '<span class="xu">◈ '+r.xu+'</span>'+
-       '<span class="tk'+(r.escaped?'':' zero')+'">✦ '+(r.escaped?r.token:0)+'</span></div>';
+       '<span class="tk">✦ '+r.token+(r.x2?' <b style="color:var(--gold)">x2</b>':'')+'</span></div>';
   });
-  b+='</div><div class="mfoot"><span class="fn">Ai qua được cổng thì giữ token; ai không kịp thì mất trắng.</span>'+
+  b+='</div><div class="mfoot"><span class="fn">Bi loai thi GIU NGUYEN token da kiem, khong phat gi ca. Thoat duoc o map cuoi thi toan bo token x2.</span>'+
      '<button class="btn" id="againB">VAN MOI</button></div>';
 
   var box=document.getElementById('over');
-  box.innerHTML=boxHtml('','KET QUA MAP 1',res.length+' NGUOI',b).replace('width:620px','width:600px');
+  box.innerHTML=boxHtml('','KET QUA VAN',res.length+' NGUOI',b).replace('width:620px','width:600px');
   box.classList.remove('hide');
   box.querySelector('#againB').onclick=function(){ sendMsg({t:'again'}); };
 }
@@ -1313,6 +1316,15 @@ function syncHud(){
   var exodus=cur.ph==='exodus';
   clock.style.color = exodus ? 'var(--danger)' : (t<60?'var(--gold)':'var(--ink)');
   document.getElementById('phaseL').textContent = exodus ? 'EXODUS' : 'SAN DO';
+  document.getElementById('stageL').textContent = 'MAP '+(cur.st||1);
+
+  /* Bị loại thì vẫn ở trong phòng xem nốt — nói rõ trạng thái, đừng để người
+     chơi ngồi nhìn màn hình không hiểu sao mình không điều khiển được gì. */
+  var kl=document.getElementById('koline');
+  if(me.ko){
+    kl.classList.remove('hide');
+    document.getElementById('kotx').textContent='BAN DA BI LOAI · DANG XEM · TOKEN DA KIEM VAN GIU';
+  } else kl.classList.add('hide');
 
   /* dải cảnh báo chỉ hiện khi có sự kiện đang chạy */
   var bl=document.getElementById('bossline'), tx='';
@@ -1404,6 +1416,7 @@ function inLobby(){ return !!(cur&&cur.lobby); }
 function worldW(){ return inLobby()?CFG.LOBBY.W:CFG.MW; }
 function worldH(){ return inLobby()?CFG.LOBBY.H:CFG.MH; }
 
+var SPEC_I=0;              /* người đang được theo dõi khi mình bị loại */
 function render(){
   requestAnimationFrame(render);
   if(!cur){ return; }
@@ -1411,8 +1424,15 @@ function render(){
 
   var vw=cv.width/ZOOM, vh=cv.height/ZOOM;
   var me=meP();
+  /* Bị loại thì toạ độ của mình đứng yên ở map trước — bám theo một người còn
+     sống để còn xem được phần kết, thay vì nhìn chằm chằm một góc map trống. */
+  if(me&&me.ko){
+    var alive=cur.P.filter(function(p){ return p.al&&!p.ko&&!p.es; });
+    if(alive.length) me=alive[(SPEC_I=SPEC_I%alive.length)];
+  }
   if(me){
-    var pm=prev?prev.P.find(function(p){return p.s===MY}):null;
+    var mySlot=me.s;
+    var pm=prev?prev.P.find(function(p){return p.s===mySlot}):null;
     var mx=pm?lerp(pm.x,me.x,alpha):me.x, my=pm?lerp(pm.y,me.y,alpha):me.y;
     cam.x=mx-vw/2; cam.y=my-vh/2;
     cam.x=Math.max(0,Math.min(Math.max(0,worldW()-vw),cam.x));
@@ -1516,10 +1536,18 @@ function drawLobbyNpcs(){
 var MAPD=null;              /* gói địa hình mới nhất từ server */
 var TERR=null;              /* {skin, ground, dark} — canvas đệm đã dựng */
 
+/* Ký tự nào là vật cản — map 1 chỉ có '#', map 2 có thêm '~' dung nham. Server
+   gửi kèm trong gói 'map' để client không phải chép lại luật của từng biến thể. */
+var SOLIDCH='#';
+
 function setMap(m){
   if(!m || !m.rows) return;
   if(MAPD && MAPD.skin===m.skin && MAPD.rows.join()===m.rows.join()) return;
-  MAPD=m; TERR=null;
+  MAPD=m; TERR=null; MINI_TERR=null;
+  SOLIDCH=m.solid||'#';
+  /* Mỗi chặng một cỡ thế giới. Camera, minimap và lớp nền đều đọc CFG.MW/MH
+     nên phải cập nhật TRƯỚC khi dựng lại canvas đệm. */
+  if(CFG && m.w && m.h){ CFG.MW=m.w; CFG.MH=m.h; }
   /* Dựng ngay lúc nhận gói (còn đang ở sảnh) chứ không đợi frame đầu của ván —
      vẽ 3750 ô vào canvas 2400x1600 mất vài trăm ms, để đúng lúc vào map thì
      người chơi thấy khựng một nhịp. */
@@ -1536,7 +1564,7 @@ function surfAt(gx,gy){
   var r=MAPD.rows[gy];
   return (r && r[gx]) || '#';
 }
-function walk(gx,gy){ return surfAt(gx,gy)!=='#'; }
+function walk(gx,gy){ return SOLIDCH.indexOf(surfAt(gx,gy))<0; }
 
 /* ---- bảng màu, lấy nguyên từ bản thiết kế ---- */
 var PAL={
@@ -1548,6 +1576,20 @@ var PAL={
     crack:'#5A6455', moss:'#4E7A34',
     edgeB:'#0C1207', edgeT:'#35522A', edgeS:'#2C4322',
     canopy:'#22331A', canopyLit:'#2C4322', canopyRoot:'#0F1608'
+  },
+  forge:{
+    dead:'#120D10',
+    /* bazan: khối sâu tối hơn mặt vách một bậc, cùng luật "sàn sáng hơn đá"
+       đã phải sửa ở hầm mộ — đá không bao giờ được trùng màu nền */
+    bulk:['#241E22','#2A2328','#1E191D'], bulkSeam:'#151114', bulkFleck:'#3A3038',
+    wall:'#3A2F31', wallTop:'#514042', wallFoot:'#1C1618',
+    ash:['#332C30','#3A3239','#2E272C','#3D3437'], grain:['#463C40','#262024'], ember:'#C4562A',
+    /* Đường tro phải sáng hơn nền tro rõ rệt: vành đai + 4 nan hoa là bộ xương
+       để đọc map 2, mà chênh một bậc mờ thì nhìn ra một mảng nâu đều tịt. */
+    road:['#6E5750','#7A625A','#634E49'], roadGrain:['#8C6F63','#4A3A36'],
+    slabA:'#39414E', slabB:'#333A46', slabLit:'#4A5464', joint:'#1A1E26',
+    crackHot:'#C4562A', vein:'#8A3A1E',
+    lava:['#E8551F','#F07A26','#D8431A'], lavaHot:'#FFD07A', lavaCrust:'#6E2A18', lavaEdge:'#8E3418'
   },
   crypt:{
     dead:'#0C0A10',
@@ -1613,6 +1655,17 @@ function drawBossPad(g,x,y){
 /* Đánh dấu bãi quái. Hầm mộ có lớp tối nên dùng vũng tím như bản cũ; phế tích
    sáng đều, không khoét được vũng nào, nên rắc viền hồng trên mép vòng. */
 function drawCampRing(g,cx,cy,r,skin){
+  if(skin==='forge'){
+    /* tàn lửa bay quanh bãi — cùng ngôn ngữ hạt với hai biến thể kia, đổi màu
+       cho khớp quái của map 2 */
+    for(var i=0;i<100;i++){
+      var a=h2(i,cx|0,cy|0)*Math.PI*2;
+      var rr=r*(.8+h2(i,cy|0,3)*.22);
+      g.fillStyle=h2(i,cx|0,5)<.45?'#E8551F':'#8E3418';
+      g.fillRect((cx+Math.cos(a)*rr)|0,(cy+Math.sin(a)*rr*.9)|0,4,4);
+    }
+    return;
+  }
   if(skin==='crypt'){
     var gr=g.createRadialGradient(cx,cy,0,cx,cy,r);
     gr.addColorStop(0,'rgba(176,143,212,.20)');
@@ -1735,6 +1788,114 @@ function paintCrypt(g,W,H,cell){
   }
 }
 
+/* ---------- biến thể LÒ DUNG NHAM (map 2) ---------- */
+/* Khác hai biến thể kia ở một điểm: có HAI loại ô cản. '#' là bazan đặc, '~' là
+   dung nham — cũng không đi qua được, nhưng phải đọc ra là "nóng, chết người"
+   chứ không phải tường. Nên dung nham vẽ sáng nhất map và tự phát quầng, còn
+   bazan vẫn tối hơn sàn một bậc đúng luật đọc map của hai biến thể trước. */
+function paintForge(g,W,H,cell){
+  var P=PAL.forge, gw=MAPD.rows[0].length, gh=MAPD.rows.length;
+  g.fillStyle=P.dead; g.fillRect(0,0,W,H);
+  var lava=[];
+
+  for(var gy=0;gy<gh;gy++) for(var gx=0;gx<gw;gx++){
+    var ch=surfAt(gx,gy), x=gx*cell, y=gy*cell, n=h2(gx,gy,1);
+
+    if(ch==='~'){
+      lava.push([x+cell/2,y+cell/2]);
+      g.fillStyle=P.lava[(n*3)|0]; g.fillRect(x,y,cell,cell);
+      /* dòng chảy: vệt ngang sáng dần, thêm vài đốm lõi trắng nóng */
+      for(var b=0;b<4;b++){
+        if(h2(gx,gy*4+b,2)<.5) continue;
+        g.fillStyle=P.lava[1];
+        g.fillRect(x+((h2(gx+b,gy,3)*10)|0), y+b*8+((h2(gx,gy+b,4)*4)|0), (h2(gx,gy,5)*20+10)|0, 3);
+      }
+      if(h2(gx,gy,6)<.35){ g.fillStyle=P.lavaHot; g.fillRect(x+((h2(gx,gy,7)*24)|0), y+((h2(gy,gx,8)*24)|0), 5, 3); }
+      continue;
+    }
+
+    if(ch==='#'){
+      /* MỌI ô bazan đều ra vật liệu — ô sát sàn thành mặt vách, ô sâu thành
+         khối có mạch so le (đúng cách đã sửa lỗi "tường vô hình" ở hầm mộ). */
+      var near=walk(gx+1,gy)||walk(gx-1,gy)||walk(gx,gy+1)||walk(gx,gy-1)||
+               walk(gx+1,gy+1)||walk(gx-1,gy-1)||walk(gx+1,gy-1)||walk(gx-1,gy+1);
+      if(!near){
+        g.fillStyle=P.bulk[(n*3)|0]; g.fillRect(x,y,cell,cell);
+        g.fillStyle=P.bulkSeam; g.fillRect(x,y+cell-2,cell,2);
+        g.fillRect(x+((gy&1)?cell/2:0),y,2,cell-2);
+        if(h2(gx,gy,9)<.12){ g.fillStyle=P.bulkFleck; g.fillRect(x+((h2(gx,gy,10)*26)|0),y+((h2(gy,gx,11)*26)|0),3,2); }
+        continue;
+      }
+      g.fillStyle=P.bulkSeam; g.fillRect(x,y,cell,cell);
+      g.fillStyle=P.wall;     g.fillRect(x+1,y+1,cell-2,cell-2);
+      g.fillStyle=P.wallTop;  g.fillRect(x+1,y+1,cell-2,3);
+      g.fillStyle=P.wallFoot; g.fillRect(x+1,y+cell-5,cell-2,4);
+      /* mạch nham thạch nguội trong vách — vệt cam mờ, thưa */
+      if(h2(gx,gy,12)<.16){ g.fillStyle=P.vein; g.fillRect(x+6,y+((h2(gx,gy,13)*20)|0),(h2(gy,gx,14)*14+4)|0,2); }
+      continue;
+    }
+
+    if(ch===','){                                  /* đường tro */
+      g.fillStyle=P.road[(n*3)|0]; g.fillRect(x,y,cell,cell);
+      for(var i=0;i<7;i++){
+        g.fillStyle=P.roadGrain[h2(i,gx+gy,15)<.5?0:1];
+        g.fillRect((x+h2(gx*7+i,gy,16)*cell)|0,(y+h2(gx,gy*7+i,17)*cell)|0,2,2);
+      }
+      if(h2(gx,gy,18)<.12){ g.fillStyle=P.ember; g.fillRect(x+((h2(gx,gy,19)*26)|0),y+((h2(gy,gx,20)*26)|0),2,2); }
+      continue;
+    }
+
+    if(ch==='='){                                  /* đá vỉa & cầu bắc qua dung nham */
+      g.fillStyle=n<.5?P.slabA:P.slabB; g.fillRect(x,y,cell,cell);
+      g.fillStyle=P.slabLit; g.fillRect(x,y,cell,2); g.fillRect(x,y,2,cell);
+      g.fillStyle=P.joint;   g.fillRect(x,y+cell-3,cell,3); g.fillRect(x+cell-3,y,3,cell);
+      if(h2(gx,gy,21)<.26){ g.fillStyle=P.crackHot; g.fillRect(x+6,y+((h2(gx,gy,22)*20)|0),(h2(gy,gx,23)*16+4)|0,2); }
+      continue;
+    }
+
+    /* tro nguội */
+    g.fillStyle=P.ash[(n*4)|0]; g.fillRect(x,y,cell,cell);
+    for(var t=0;t<3;t++){
+      if(h2(gx*3+t,gy,24)<.45){
+        g.fillStyle=P.grain[h2(t,gx+gy,25)<.5?0:1];
+        g.fillRect((x+h2(gx+t,gy,26)*28)|0,(y+h2(gx,gy+t,27)*28)|0,3,2);
+      }
+    }
+    if(h2(gx,gy,28)<.07){ g.fillStyle=P.ember; g.fillRect(x+((h2(gx,gy,29)*26)|0),y+((h2(gy,gx,30)*26)|0),2,2); }
+  }
+
+  /* mép dung nham: viền vỏ nguội để bờ sông đọc ra được ở mọi hướng, và gờ tối
+     ở mép bazan giáp sàn — cùng thủ pháp "mép làm rõ chỗ không qua được" của
+     hai biến thể trước. */
+  for(var ey=0;ey<gh;ey++) for(var ex=0;ex<gw;ex++){
+    var c2=surfAt(ex,ey), X=ex*cell, Y=ey*cell;
+    if(c2==='~'){
+      if(surfAt(ex,ey-1)!=='~'){ g.fillStyle=P.lavaCrust; g.fillRect(X,Y,cell,3); }
+      if(surfAt(ex,ey+1)!=='~'){ g.fillStyle=P.lavaEdge;  g.fillRect(X,Y+cell-3,cell,3); }
+      if(surfAt(ex-1,ey)!=='~'){ g.fillStyle=P.lavaCrust; g.fillRect(X,Y,3,cell); }
+      if(surfAt(ex+1,ey)!=='~'){ g.fillStyle=P.lavaCrust; g.fillRect(X+cell-3,Y,3,cell); }
+    } else if(c2==='#'){
+      if(walk(ex,ey+1)){ g.fillStyle='rgba(10,6,8,.55)'; g.fillRect(X,Y+cell-4,cell,4); }
+      if(walk(ex,ey-1)){ g.fillStyle='rgba(81,64,66,.7)'; g.fillRect(X,Y,cell,3); }
+      if(walk(ex-1,ey)){ g.fillStyle='rgba(10,6,8,.35)'; g.fillRect(X,Y,3,cell); }
+      if(walk(ex+1,ey)){ g.fillStyle='rgba(10,6,8,.35)'; g.fillRect(X+cell-3,Y,3,cell); }
+    }
+  }
+
+  /* Quầng nóng của dung nham hắt lên mặt đất quanh bờ. Bake thẳng vào canvas
+     nền: nó không đổi theo thời gian, mà map 2 có tới ~200 ô dung nham nên vẽ
+     mỗi frame là phí. Lọc thưa 1/3 ô cho khỏi thành một mảng cam phẳng lì. */
+  g.globalCompositeOperation='lighter';
+  for(var li=0;li<lava.length;li+=3){
+    var lx=lava[li][0], ly=lava[li][1];
+    var gr=g.createRadialGradient(lx,ly,0,lx,ly,74);
+    gr.addColorStop(0,'rgba(232,85,31,.20)');
+    gr.addColorStop(1,'rgba(232,85,31,0)');
+    g.fillStyle=gr; g.beginPath(); g.arc(lx,ly,74,0,7); g.fill();
+  }
+  g.globalCompositeOperation='source-over';
+}
+
 /* Đuốc: gắn ở ô sàn có đá ngay phía bắc (mặt tường), rồi lọc thưa để hai cái
    không bao giờ gần nhau dưới 300px. Đủ để định vị chứ không thành biển sáng —
    khoảng 30 cái trên cả map, đúng như bản thiết kế. */
@@ -1804,7 +1965,9 @@ function buildTerrain(){
   var gc=document.createElement('canvas'); gc.width=W; gc.height=H;
   var g=gc.getContext('2d'); g.imageSmoothingEnabled=false;
 
-  if(skin==='crypt') paintCrypt(g,W,H,cell); else paintRuin(g,W,H,cell);
+  if(skin==='crypt') paintCrypt(g,W,H,cell);
+  else if(skin==='forge') paintForge(g,W,H,cell);
+  else paintRuin(g,W,H,cell);
 
   var torches = skin==='crypt' ? cryptTorches(cell) : [];
   columnSpots(cell).forEach(function(c){ drawColumn(g,c.x,c.y,c.h); });
@@ -1865,9 +2028,13 @@ function buildTerrain(){
       if(walk(wx,wy)) gl.fillRect(wx*cell,wy*cell,cell,cell);
     gl.globalCompositeOperation='source-over';
   } else {
-    /* phế tích: vignette nhẹ ở rìa để mắt tự dồn về tâm */
-    var vg=g.createRadialGradient(W/2,H/2,640,W/2,H/2,1500);
-    vg.addColorStop(0,'rgba(8,12,6,0)'); vg.addColorStop(1,'rgba(8,12,6,.55)');
+    /* phế tích / lò dung nham: vignette nhẹ ở rìa để mắt tự dồn về tâm. Bán
+       kính tính theo cỡ map thật — map 2 nhỏ hơn, để số cứng 1500 thì gần như
+       không thấy vignette đâu. */
+    var vr=Math.hypot(W,H)/2;
+    var vg=g.createRadialGradient(W/2,H/2,vr*0.44,W/2,H/2,vr*1.04);
+    var vc=skin==='forge'?'14,6,6':'8,12,6';
+    vg.addColorStop(0,'rgba('+vc+',0)'); vg.addColorStop(1,'rgba('+vc+',.55)');
     g.fillStyle=vg; g.fillRect(0,0,W,H);
   }
 
@@ -1920,7 +2087,7 @@ function playerAt(slot,alpha){
   if(!cur||!cur.P) return null;
   var p=null;
   for(var i=0;i<cur.P.length;i++) if(cur.P[i].s===slot){ p=cur.P[i]; break; }
-  if(!p||!p.al||p.es) return null;
+  if(!p||!p.al||p.es||p.ko) return null;
   var pp=prev?prev.P.find(function(o){return o.s===slot}):null;
   return { x: pp?lerp(pp.x,p.x,alpha):p.x, y: pp?lerp(pp.y,p.y,alpha):p.y };
 }
@@ -2146,7 +2313,7 @@ function drawProjs(){
 function drawPlayers(alpha){
   var now=performance.now();
   cur.P.forEach(function(p){
-    if(p.es) return;
+    if(p.es||p.ko) return;   /* đã qua cổng hoặc đã bị loại: không còn trên map này */
     var pp=prev?prev.P.find(function(o){return o.s===p.s}):null;
     var x=pp?lerp(pp.x,p.x,alpha):p.x, y=pp?lerp(pp.y,p.y,alpha):p.y;
     var id='p'+p.s;
@@ -2278,7 +2445,8 @@ function drawEdge(){
 var MINI_TERR=null;
 var MINI_COL={
   ruin:{'#':'#131C0C','.':'#4E7A34',',':'#7A6242','=':'#77836F'},
-  crypt:{'#':'#12181C','.':'#3E5250',',':'#3E5250','=':'#3E5250'}
+  crypt:{'#':'#12181C','.':'#3E5250',',':'#3E5250','=':'#3E5250'},
+  forge:{'#':'#241E22','~':'#E8551F','.':'#3F363A',',':'#5F4A49','=':'#39414E'}
 };
 function buildMiniTerrain(){
   var gw=MAPD.rows[0].length, gh=MAPD.rows.length;
@@ -2327,7 +2495,7 @@ function drawMini(){
   cur.G.forEach(function(g){ sq(g.x,g.y,5,'#C08CF0'); });
   cur.E.forEach(function(e){ if(e.bs) sq(e.x,e.y,6,'#F0742E'); });
   cur.P.forEach(function(p){
-    if(!p.al||p.es) return;
+    if(!p.al||p.es||p.ko) return;
     if(p.s===MY) sq(p.x,p.y,5,'#F4EEF7'); else sq(p.x,p.y,4,'#CBBDD6');
   });
   /* khung nhìn */
