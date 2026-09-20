@@ -1,17 +1,21 @@
-/* Chạy thử một ván map 1 không cần trình duyệt: mở server thật, nối một client
- * WebSocket thô, bấm sẵn sàng, để 5 bot đánh cho tới hết giờ + di tản.
- * Kiểm tra: bốc được cả hai biến thể, không ai kẹt trong vật cản, bot có đi
- * chuyển thật, quái/rương/cổng đều nằm trên sàn.
- *   node test-map1.js            (mặc định ván 45 giây)
- *   MATCH_TIME=20 node test-map1.js
+/* Chạy thử TRỌN MỘT VÁN không cần trình duyệt: mở server thật, nối một client
+ * WebSocket thô, bấm sẵn sàng, để 5 bot đánh hết map 1 -> di tản -> map 2 ->
+ * di tản -> bảng kết quả.
+ * Kiểm tra: bốc được cả ba biến thể địa hình, chuyển chặng đúng (đổi cỡ map,
+ * đổi lưới, người không qua cổng bị loại), không ai kẹt trong vật cản, bot có
+ * di chuyển thật, quái/rương/cổng đều nằm trên sàn.
+ *   node test-map1.js                          (map 1: 30s, map 2: 25s)
+ *   MATCH_TIME=20 MAP2_TIME=20 node test-map1.js
  */
 const net = require('net'), crypto = require('crypto'), cp = require('child_process');
 
 const PORT = 8099;
-const MATCH_TIME = Number(process.env.MATCH_TIME || 45);
+const MATCH_TIME = Number(process.env.MATCH_TIME || 30);
+const MAP2_TIME = Number(process.env.MAP2_TIME || 25);
 const LAYOUTS = {
   crypt: require('./assets/map1-layout.js'),
-  ruin: require('./assets/map1-ruin-layout.js')
+  ruin: require('./assets/map1-ruin-layout.js'),
+  forge: require('./assets/map2-forge-layout.js')
 };
 /* đúng phép thử va chạm của server: 9 điểm quanh thân bán kính 12 */
 function chamTuong(L, x, y) {
@@ -37,7 +41,7 @@ let fail = 0;
 const ok = (c, m) => { if (!c) { console.log('  ✗ ' + m); fail++; } else console.log('  ✓ ' + m); };
 
 const srv = cp.spawn(process.execPath, ['map1-server.js'], {
-  env: { ...process.env, PORT: String(PORT), MATCH_TIME: String(MATCH_TIME), BOTS: '5' },
+  env: { ...process.env, PORT: String(PORT), MATCH_TIME: String(MATCH_TIME), MAP2_TIME: String(MAP2_TIME), BOTS: '5' },
   stdio: ['ignore', 'pipe', 'pipe']
 });
 let srvErr = '';
@@ -94,7 +98,11 @@ function run() {
 
   function onMsg(m) {
     if (m.t === 'welcome') { if (m.map) lastMap = m.map; return; }
-    if (m.t === 'map') { seen.maps++; lastMap = m; seen.skins.add(m.skin); return; }
+    if (m.t === 'map') {
+      seen.maps++; lastMap = m; seen.skins.add(m.skin);
+      (seen.byStage = seen.byStage || {})[m.stage] = m;
+      return;
+    }
     if (m.t !== 'state') return;
     seen.states++; lastState = m;
     if (m.skin) seen.skins.add(m.skin);
@@ -125,6 +133,10 @@ function run() {
       if (!trail[k2]) trail[k2] = { dead: false, x: p.x, y: p.y };
       if (!p.al && !p.es && !trail[k2].dead) { trail[k2].dead = true; trail[k2].x = p.x; trail[k2].y = p.y; }
     }
+    /* chặng: gói state mang số map, phải khớp với địa hình đang gửi */
+    (trail.stages = trail.stages || new Set()).add(m.st);
+    if (m.st === 2 && m.skin !== 'forge') trail.skinLech = (trail.skinLech || 0) + 1;
+    trail.ko = Math.max(trail.ko || 0, m.P.filter(p => p.ko).length);
     for (const e of m.E) if (L.solid(e.x, e.y)) trail.stuckE = (trail.stuckE || 0) + 1;
     for (const c of m.C) if (L.solid(c.x, c.y)) trail.badChest = (trail.badChest || 0) + 1;
     for (const g of m.G) if (L.solid(g.x, g.y)) trail.badGate = (trail.badGate || 0) + 1;
@@ -137,11 +149,19 @@ function run() {
   setTimeout(() => {
     console.log('\n===== MỘT VÁN MAP 1 (' + MATCH_TIME + 's) =====');
     ok(seen.states > 100, seen.states + ' gói state nhận được');
-    ok(seen.maps >= 1, seen.maps + ' gói địa hình (bốc lại mỗi ván)');
+    ok(seen.maps >= 2, seen.maps + ' gói địa hình (một gói mỗi chặng)');
     ok(lastMap && LAYOUTS[lastMap.skin], 'biến thể đã bốc: ' + (lastMap && lastMap.skin));
-    ok(lastMap && lastMap.rows && lastMap.rows.length === 50, 'lưới 50 hàng gửi kèm');
-    ok(lastMap && lastMap.camps.length >= 12, (lastMap ? lastMap.camps.length : 0) + ' bãi quái');
-    ok(lastMap && lastMap.chests.length === 16, '16 rương');
+    const m1 = (seen.byStage || {})[1], m2 = (seen.byStage || {})[2];
+    ok(!!m1 && !!m2, 'nhận đủ địa hình của cả hai chặng');
+    ok(!!m1 && m1.rows.length === 50 && m1.w === 2400 && m1.h === 1600, 'map 1: lưới 50 hàng, thế giới 2400x1600');
+    ok(!!m2 && m2.skin === 'forge' && m2.rows.length === 40 && m2.w === 1920 && m2.h === 1280,
+      'map 2: lò dung nham, lưới 40 hàng, thế giới 1920x1280 (nhỏ hơn map 1)');
+    ok(!!m2 && m2.solid === '#~', 'map 2 báo client biết có hai ký tự cản: ' + (m2 ? m2.solid : '-'));
+    ok(!!m1 && m1.camps.length >= 12 && !!m2 && m2.camps.length >= 8,
+      'bãi quái: map 1 có ' + (m1 ? m1.camps.length : 0) + ', map 2 có ' + (m2 ? m2.camps.length : 0));
+    ok(!!m1 && m1.chests.length === 16 && !!m2 && m2.chests.length === 12, 'rương: map 1 có 16, map 2 có 12');
+    ok(trail.stages && trail.stages.has(1) && trail.stages.has(2), 'ván đi qua cả chặng 1 và chặng 2');
+    ok(!trail.skinLech, (trail.skinLech || 0) + ' gói state báo chặng 2 mà địa hình vẫn của map 1 (phải là 0)');
     ok(!trail.stuckP, (trail.stuckP || 0) + ' lần người chơi nằm trong vật cản (phải là 0)');
     ok(!trail.kep, (trail.kep || 0) + ' lần người chơi kẹt cứng, thân không lọt (phải là 0)' + (trail.kepAt ? ' @ ' + trail.kepAt : ''));
     ok(trail.hoiSinh > 0, (trail.hoiSinh || 0) + ' lượt hồi sinh quan sát được');
@@ -154,9 +174,11 @@ function run() {
     ok(moved.filter(d => d > 300).length >= 4, moved.filter(d => d > 300).length + '/' + moved.length + ' đi được hơn 300px (bot không kẹt tường)');
     ok(trail.phases && trail.phases.has('exodus'), 'ván chạy tới pha di tản');
     ok(trail.gates >= 2, (trail.gates || 0) + ' cổng thoát mở ra');
+    ok(trail.phases && trail.phases.has('over'), 'ván chạy tới bảng kết quả');
+    console.log('  · ' + (trail.ko || 0) + ' người bị loại ở map 1 (không qua kịp cổng)');
     ok(!/Error|TypeError|ReferenceError/.test(srvErr), 'server không ném lỗi nào');
     console.log(fail ? '\n' + fail + ' TEST HỎNG' : '\nTất cả test đạt');
     srv.kill();
     process.exit(fail ? 1 : 0);
-  }, (MATCH_TIME + 34) * 1000);
+  }, (MATCH_TIME + 30 + MAP2_TIME + 25 + 10) * 1000);
 }

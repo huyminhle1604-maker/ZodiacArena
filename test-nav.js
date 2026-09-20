@@ -1,6 +1,6 @@
 /* Test tìm đường của bot — trích thẳng từ map1-server.js.
- * Địa hình giờ là lưới 32px của assets/map1-layout.js (hầm mộ) và
- * assets/map1-ruin-layout.js (phế tích), nên test chạy cả hai biến thể.
+ * Chạy cả ba địa hình: hầm mộ + phế tích (map 1, lưới 75x50) và lò dung nham
+ * (map 2, lưới 60x40 — cỡ thế giới khác nên test lấy MW/MH theo layout).
  * Chạy: node test-nav.js
  */
 const fs = require('fs'), path = require('path'), vm = require('vm');
@@ -9,38 +9,41 @@ const cut = (a, b) => { const i = SRC.indexOf(a), j = SRC.indexOf(b, i); return 
 
 const LAYOUTS = {
   crypt: require('./assets/map1-layout.js'),
-  ruin: require('./assets/map1-ruin-layout.js')
+  ruin: require('./assets/map1-ruin-layout.js'),
+  forge: require('./assets/map2-forge-layout.js')
 };
 
 const core = [
-  'const MW = 2400, MH = 1600, MAXP = 6;',
+  'let MW = 2400, MH = 1600; const MAXP = 6;',
   'const clamp = (v, a, b) => v < a ? a : v > b ? b : v;',
   'let MAP = LAYOUTS.ruin, BOSS_POS = { x: 1200, y: 800 };',
   cut('function inWall(x, y, pad)', '\nfunction ev(e)'),
   cut('const NAV_PAD = 14;', '/* ============================ PHÒNG'),
-  'function useLayout(k){ MAP = LAYOUTS[k]; BOSS_POS = { x: MAP.BOSS_POS[0], y: MAP.BOSS_POS[1] }; buildNav(); }'
+  'function useLayout(k){ MAP = LAYOUTS[k]; MW = MAP.GW * MAP.CELL; MH = MAP.GH * MAP.CELL; BOSS_POS = { x: MAP.BOSS_POS[0], y: MAP.BOSS_POS[1] }; buildNav(); }',
+  'function worldSize(){ return [MW, MH]; }'
 ].join('\n');
 
 const T = {};
 vm.runInNewContext(
-  core + '\nObject.assign(exports,{inWall,losClear,findPath,buildNav,pickSpawns,useLayout,MW,MH});',
+  core + '\nObject.assign(exports,{inWall,losClear,findPath,buildNav,pickSpawns,useLayout,worldSize});',
   { exports: T, LAYOUTS, Math, Array, Infinity, console, Uint8Array, Int32Array, Float32Array }
 );
-const { inWall, losClear, findPath, pickSpawns, useLayout, MW, MH } = T;
+const { inWall, losClear, findPath, pickSpawns, useLayout, worldSize } = T;
 
 let fail = 0;
 const ok = (c, m) => { if (!c) { console.log('  ✗ ' + m); fail++; } else console.log('  ✓ ' + m); };
 
-for (const key of ['crypt', 'ruin']) {
+for (const key of ['crypt', 'ruin', 'forge']) {
   const L = LAYOUTS[key];
   useLayout(key);
+  const [MW, MH] = worldSize();
   console.log('\n===== biến thể ' + key.toUpperCase() + ' =====');
 
   console.log('va chạm theo lưới:');
   ok(inWall(0, 0, 0), 'góc bản đồ là vật cản');
   ok(inWall(-50, 800, 0) && inWall(MW + 50, 800, 0), 'ngoài rìa bản đồ tính là vật cản');
   ok(!inWall(L.BOSS_POS[0], L.BOSS_POS[1], 14), 'bệ boss đứng được');
-  ok(L.CHEST_SPOTS.every(c => !inWall(c[0], c[1], 12)), '16 rương đều nằm trên sàn');
+  ok(L.CHEST_SPOTS.every(c => !inWall(c[0], c[1], 12)), L.CHEST_SPOTS.length + ' rương đều nằm trên sàn');
   ok(L.MERCHANTS.every(m => !inWall(m[0], m[1], 12)), 'merchant đều nằm trên sàn');
   ok(L.GATES.every(g => !inWall(g[0], g[1], 12)), 'cổng đều nằm trên sàn');
 
@@ -77,11 +80,12 @@ for (const key of ['crypt', 'ruin']) {
   const sp = pickSpawns();
   ok(sp.length === 6, sp.length + ' chỗ đứng');
   ok(sp.every(s => !inWall(s.x, s.y, 16)), 'chỗ nào cũng đứng được');
-  ok(sp.every(s => Math.hypot(s.x - L.BOSS_POS[0], s.y - L.BOSS_POS[1]) >= 520), 'không ai vào ván cạnh bệ boss');
+  const smin = L.SPAWN_MIN || 520;
+  ok(sp.every(s => Math.hypot(s.x - L.BOSS_POS[0], s.y - L.BOSS_POS[1]) >= smin), 'không ai vào map cạnh bệ boss (>= ' + smin + 'px)');
   let minGap = 1e9;
   for (let i = 0; i < sp.length; i++) for (let j = i + 1; j < sp.length; j++)
     minGap = Math.min(minGap, Math.hypot(sp[i].x - sp[j].x, sp[i].y - sp[j].y));
-  ok(minGap > 300, 'hai chỗ gần nhau nhất cách ' + Math.round(minGap) + 'px');
+  ok(minGap > (key === 'forge' ? 200 : 300), 'hai chỗ gần nhau nhất cách ' + Math.round(minGap) + 'px');
 
   console.log('\nhiệu năng:');
   const far = spots[0], far2 = spots[spots.length - 1];
